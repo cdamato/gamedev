@@ -1,0 +1,9 @@
+# left hand side is the sprite's internal name.
+# List entry meanings, in order: filename, # of horizontal divisions, # of vertical divisions, and the intended z-index of this texture.
+
+bullet = {"bullet.png", 1, 1, 2}
+button = {"button.png", 1, 1, 2}
+highlight = {"highlight.png", 2, 1, 1}
+items = {"items.png", 2, 1, 2}
+player = {"player.png", 1, 1, 2}
+tilemap = {"tilemap.png", 5, 3, 1}
