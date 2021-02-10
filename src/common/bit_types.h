@@ -27,7 +27,7 @@ public:
 	}
 	size_t size() { return _markers.count(); }
 	class iterator;
-w
+	
 	iterator begin() { return iterator(0, this); }
 	iterator end() { return iterator(array_size, this); }
 
