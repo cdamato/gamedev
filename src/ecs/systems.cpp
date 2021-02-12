@@ -151,14 +151,14 @@ void s_health::run(pool<c_health>& healths, pool<c_damage>& damages,
 			set_entry(healthbars.get(health.ref).tex_index, health.health);
 
 		if (health.health <= 0) {
-			regen_atlas = true;
+			regenerate = true;
 			entities.mark_entity(health.ref);
 		}
 	}
 }
 
 
-static std::tuple<u8, u8, u8> to_rgb(f32 h, f32 s, f32 v, f32 max = 255)
+static color to_rgb(f32 h, f32 s, f32 v, f32 max = 255)
 {
     s /= 100.0f;
     v /= 100.0f;
@@ -179,36 +179,32 @@ static std::tuple<u8, u8, u8> to_rgb(f32 h, f32 s, f32 v, f32 max = 255)
     else if (h >= 120 && h < 180)
         rp = 0;
 
-    return std::tuple {(rp + m) * max, (gp + m) * max, (bp + m) * max};
+    return color((rp + m) * max, (gp + m) * max, (bp + m) * max, 255);
 }
 
 void s_health::set_entry(u32 index, f32 val) {
-	auto tuple = to_rgb(val, 100, 50);
-	size_t start = index * 32 * 4;
+    color c = to_rgb(val, 100, 50);
+	size_t start = index * 32;
 
-	for (size_t i = start; i < start + 32 * 4; i += 4) {
-		texture_data[i] = std::get<0>(tuple);
-		texture_data[i + 1] = std::get<1>(tuple);
-		texture_data[i + 2] = std::get<2>(tuple);
-		texture_data[i + 3] = 255;
+	for (size_t i = start; i < start + 32 ; i ++) {
+        data.image_data.write(i, c);
 	}
 }
 
 void s_health::update_healthbars(pool<c_healthbar>& healthbars, pool<c_health>& healths, pool<sprite>& sprites)
 {
-	if (healthbars.size() != last_atlassize) regen_atlas = true;
+	if (healthbars.size() != last_atlassize) regenerate = true;
 	last_atlassize = healthbars.size();
 
 //	healthbar_atlas.set_data(texture_data, 8, 4 * healthbars.size(), 0x1908 );
-	if (!regen_atlas || healthbars.size() == 0) {
+	if (!regenerate || healthbars.size() == 0) {
 		return;
 	}
 
 	size_t index = 0;
-	u32 width = 8;
-	u32 height = 4 * healthbars.size();
-	texture_data = std::vector<u8>(width * height * 4 );
-
+    size<u16> tex_size = size<u16>(8, 4 * healthbars.size());
+	data.image_data = image(std::vector<u8>(tex_size.w * tex_size.h * 4), tex_size);
+    data.z_index = 2;
 
 	size<f32> slice_size(1, 1.0f / healthbars.size());
 	point<f32> pos(1, 0);
@@ -223,7 +219,7 @@ void s_health::update_healthbars(pool<c_healthbar>& healthbars, pool<c_health>& 
 			point<f32> tl = spr.get_dimensions().bottom_left() + point<f32>(0, 0.1);
 			u32 index = spr.gen_subsprite(1, render_layers::sprites);
 			healthbar.subsprite_index = index;
-			spr.get_subsprite(index).tex = &healthbar_atlas;
+			spr.get_subsprite(index).tex = tex;
 			size<f32> size(1, 0.25);
 
 			spr.set_pos(tl, size, 0, spr.get_subsprite(index).start );
@@ -237,7 +233,7 @@ void s_health::update_healthbars(pool<c_healthbar>& healthbars, pool<c_health>& 
 	}
 
 //	healthbar_atlas.set_data(texture_data, width, height, 0x1908 );
-	regen_atlas = false;
+	regenerate = false;
 }
 
 /**************************/
@@ -414,7 +410,7 @@ void s_text::run(pool<c_text>& texts, pool<sprite>& sprites) {
 		size<f32> new_dim(dim.size.w / static_cast<f32>(atlas_size.w), dim.size.h / static_cast<f32>(atlas_size.h));
 
 		sprites.get(text.ref).set_uv(pos, new_dim, 0, text.subsprite_index);
-		sprites.get(text.ref).get_subsprite(text.subsprite_index).tex = &atlas;
+		sprites.get(text.ref).get_subsprite(text.subsprite_index).tex = atlas;
 		pen.y += dim.size.h ;
 	}
 

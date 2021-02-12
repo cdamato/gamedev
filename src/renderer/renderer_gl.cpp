@@ -9,8 +9,8 @@ static constexpr unsigned buffer_size = NUM_QUADS * VERTICES_PER_QUAD * sizeof(v
 
 
 
-void bind_texture(texture* tex) {
-    glBindTexture(GL_TEXTURE_2D, tex->ID);
+void bind_texture(texture tex) {
+    glBindTexture(GL_TEXTURE_2D, tex);
 }
 
 class shader : no_copy, no_move
@@ -62,7 +62,7 @@ void renderer_gl::render_batch(render_layers layer) {
     }
     bind_texture(current_tex);
     shader& shader = data->get_shader(layer);
-    shader.update_uniform("z_index", current_tex->z_index);
+    shader.update_uniform("z_index", texture_datas[current_tex].z_index);
 
     mapped_vertex_buffer = unmap_buffer();
     glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(quads_batched * 6),
@@ -92,10 +92,11 @@ void GLAPIENTRY MessageCallback( GLenum source, GLenum type, GLuint id,
 
 
 
-texture* renderer_gl::add_texture(std::string name) {
-    texture* tex = &texture_map[name];
-    glGenTextures(1, &tex->ID);
-    return tex;
+texture renderer_gl::add_texture(std::string name) {
+    u32 obj;
+    glGenTextures(1, &obj);
+    texture_map[name] = obj;
+    return obj;
 }
 
 
@@ -120,10 +121,10 @@ renderer_gl::renderer_gl() {
 		// top right
 		index_buffer[array_index + 1] = vert_index + 1;
         // bottom left
-        index_buffer[array_index + 4] = vert_index + 2;
+        index_buffer[array_index + 4] = vert_index + 3;
 		// bottom right
-		index_buffer[array_index + 2] = vert_index + 3;
-		index_buffer[array_index + 3] = vert_index + 3;
+		index_buffer[array_index + 2] = vert_index + 2;
+		index_buffer[array_index + 3] = vert_index + 2;
 
 		array_index += 6;
 		vert_index += 4;
@@ -180,10 +181,11 @@ void renderer_gl::clear_screen()
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 }
 
-void renderer_gl::set_texture_data(texture* tex, std::vector<u8>& pixels, size<u16> size, bool greyscale) {
-    unsigned data_type = greyscale ? 0x1903 : GL_RGBA;
+void renderer_gl::process_texture_data(texture tex) {
+    texture_data data = texture_datas[tex];
+    unsigned data_type = data.is_greyscale ? 0x1903 : GL_RGBA;
     bind_texture(tex);
-    glTexImage2D(GL_TEXTURE_2D, 0, data_type, size.w, size.h, 0, data_type, GL_UNSIGNED_BYTE, pixels.data());
+    glTexImage2D(GL_TEXTURE_2D, 0, data_type, data.image_data.size().w, data.image_data.size().h, 0, data_type, GL_UNSIGNED_BYTE, data.image_data.data());
     glGenerateMipmap(GL_TEXTURE_2D);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);

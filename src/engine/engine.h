@@ -20,14 +20,11 @@ public:
 	timer hover_timer;
 	bool hover_active = false;
 
-
 	bool handle_button(event& event, engine&);
     bool handle_keypress(event& event, engine&);
     bool handle_cursor(event& event, engine&);
     bool handle_hover(event& event, engine&);
-
 };
-
 
 
 enum window_flags {
@@ -78,7 +75,7 @@ class engine {
 public:
     settings_manager settings;
 	window_manager window;
-    renderer_software renderer;
+    renderer_gl renderer;
 	ecs_engine ecs;
 	ui_manager ui;
     logic_manager logic;

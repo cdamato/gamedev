@@ -5,14 +5,13 @@
 /*     components.h - component types, pools, and the component manager for the ECS framework     */
 /**************************************************************************************************/
 
-#include <common/basic_types.h>
+#include <common/graphical_types.h>
 #include <common/bit_types.h>
 #include <common/event.h>
 #include <functional>
 #include <vector>
 
 
-using entity = u32;
 struct component_base {
 	entity ref = 65535;
 };
@@ -21,25 +20,8 @@ struct component_base {
 /*     Non-Component Types     */
 /*******************************/
 
-// The functions for this are defined in renderer.cpp, to avoid including the massive GLEW.h twice
-class texture : no_move, no_copy {
-public:
-    f32 z_index = 2;
-    u32 ID;
-};
 
-// You can set render layer to "null" to prevent display of a sprite.
-enum class render_layers : u8 {
-	null,
-	sprites,
-	text,
-	ui
-};
 
-struct vertex {
-	point<f32> pos;
-	point<f32> uv;
-};
 
 struct tile_data {
 	std::bitset<8> collision;
@@ -101,11 +83,10 @@ struct weapon {
 /*     Visual Components     */
 /*****************************/
 
-class texture;
 class sprite : public component_base {
 public:
 	struct subsprite {
-		texture* tex = nullptr;
+		texture tex = null_texture;
 		u16 size = 0;
 		u16 start = 0;
 		render_layers layer;

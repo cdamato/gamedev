@@ -21,6 +21,8 @@ void engine::run_tick() {
         ui.handle_hover(a, *this);
     }
 
+    renderer.set_texture_data(ecs.systems.health.get_texture(), ecs.systems.health.get_data());
+
     renderer.set_camera(offset);
     renderer.clear_sprites();
 	for (auto& sprite : ecs.components.get_pool(type_tag<sprite>())) {
@@ -43,6 +45,9 @@ engine::engine()  : settings(), window(settings){
 	ecs._player_id = create_entity([&](entity, engine&){});
 
     ecs.add_component<c_mapdata>(map_id());
+
+
+    ecs.systems.health.set_texture(renderer.add_texture("healthbar_atlas"));
 
     auto& inv = ecs.add_component<c_inventory>(player_id());
     ecs.add_component<sprite>(player_id());
@@ -145,7 +150,7 @@ entity at_cursor(entity e, engine& g, point<f32> cursor) {
 bool ui_manager::handle_button(event& e, engine& g) {
     hover_timer.start();
     entity dest = at_cursor<0>(root, g, e.pos);
-    bool success;
+    bool success = false;
     if (dest != 65535 && dest != root)
         success = g.ecs.get_component<c_mouseevent>(dest).run_event(e);
     if (success) return true;

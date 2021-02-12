@@ -80,6 +80,9 @@ public:
 };
 
 
+
+
+
 struct no_copy {
 	no_copy() = default;
 	no_copy (no_copy&) = delete;

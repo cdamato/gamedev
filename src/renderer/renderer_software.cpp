@@ -2,6 +2,13 @@
 #include <common/png.h>
 
 
+//
+// I haven't yet figured out a good way to render framebuffers in x11.
+// Until I do so, this backend is "almost working, but useless"
+//
+
+
+/*
 static constexpr unsigned VERTICES_PER_QUAD = 4;
 static constexpr unsigned NUM_QUADS = 1024;
 
@@ -9,9 +16,9 @@ void renderer_software::clear_screen() {
     framebuffer.data = std::vector<u8>(resolution.w * resolution.h * 4, 255);
 }
 
-texture* renderer_software::add_texture(std::string name) {
-    texture* tex = &texture_map[name];
-    tex->ID = texture_counter;
+texture renderer_software::add_texture(std::string name) {
+    texture tex = texture_map[name];
+    tex = texture_counter;
     texture_counter++;
     textures.emplace_back(image{});
     return tex;
@@ -32,8 +39,8 @@ void renderer_software::set_camera(point<f32> camera_in) {
     camera = camera_in;
 }
 
-void renderer_software::set_texture_data(texture* tex, std::vector<u8>& data, size<u16> size, bool ) {
-    textures[tex->ID] = image{size, std::vector<u8>(data)};
+void renderer_software::set_texture_data(texture tex, std::vector<u8>& data, size<u16> size, bool ) {
+    textures[tex] = image{size, std::vector<u8>(data)};
 }
 
 
@@ -55,7 +62,7 @@ void renderer_software::render_batch(render_layers layer) {
         case render_layers::sprites:
             break;
     }
-    size_t tex_id = current_tex->ID;
+    size_t tex_id = current_tex;
     if (tex_id >= textures.size()) throw "bruh";
     image tex = textures[tex_id];
 
@@ -101,3 +108,4 @@ void renderer_software::render_batch(render_layers layer) {
     //if there's an error, display it
    // if(error) std::cout << "encoder error " << error << ": "<< lodepng_error_text(error) << std::endl;
 }
+*/

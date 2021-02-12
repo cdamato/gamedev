@@ -161,7 +161,6 @@ std::unique_ptr<config_string> config_parser::parse_string()
 {
     discard_peek();
     auto new_string = std::unique_ptr<config_string>(new config_string);
-    bool escape_found = false;
     for(;;) {
         const auto maybe_byte = peek_byte();
         if(!maybe_byte) {
@@ -172,10 +171,8 @@ std::unique_ptr<config_string> config_parser::parse_string()
         if(c == '"') {
             break;
         } else if (c == '\\') {
-        	escape_found = true;
         	continue;
         } else if (c == '\n') {
-        	escape_found = false;
         	continue;
         }
         new_string->value.push_back(c);

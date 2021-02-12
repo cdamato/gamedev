@@ -38,17 +38,13 @@ void init_npc_hub(engine& g) {
 
     std::string tiledata_string = d->get<std::string>("tile_data");
     std::vector<u8> tile_data(tiledata_string.size());
-    for (int i = 0; i < tile_data.size(); i++) {
+
+    for (size_t i = 0; i < tile_data.size(); i++) {
     	tile_data[i] = tiledata_string[i] - 48;
     }
 
-
-
-
-
     setup_player(g);
     set_map(g, map_size, tile_data);
-
 
     const config_dict* storagechest_dict = dynamic_cast<const config_dict*>(d->get("storage_chest"));
     const config_list* scpos = dynamic_cast<const config_list*>(storagechest_dict->get("pos"));

@@ -6,6 +6,19 @@
 class sprite;
 class entity_manager;
 
+
+class texture_generator {
+public:
+    void set_texture(texture in) { tex = in; }
+    texture get_texture() { return tex; }
+    texture_data& get_data() { return data;  }
+protected:
+    texture_data data;
+    size_t last_atlassize = 0;
+    texture tex;
+    bool regenerate = true;
+};
+
 struct s_shooting {
 	using bullet_func = std::function<void(std::string, size<f32>, point<f32>, point<f32>, point<f32>, collision_flags)>;
 	struct bullet {
@@ -19,19 +32,12 @@ struct s_shooting {
 };
 
 
-struct s_health {
+struct s_health : public texture_generator {
 public:
 	void run(pool<c_health>&, pool<c_damage>&, pool<c_healthbar>&, entity_manager&);
 	void update_healthbars(pool<c_healthbar>&, pool<c_health>&, pool<sprite>&);
-    std::vector<u8> get_texdata() { return texture_data; }
 private:
-	std::vector<u8> texture_data;
-	bool regen_atlas = true;
-	size_t last_atlassize = 0;
-	texture healthbar_atlas;
-
 	void set_entry(u32, f32);
-
 };
 
 struct s_text {
@@ -47,7 +53,6 @@ private:
 	impl* data;
 	size_t last_atlassize = 0;
 	bool reconstruct_atlas = true;
-	size<u16> atlas_size;
 };
 
 

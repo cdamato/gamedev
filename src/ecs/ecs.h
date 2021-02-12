@@ -30,7 +30,6 @@ private:
 
 class ecs_engine {
 public:
-
 	template <typename T>
 	void remove_component(entity e) { components.get_pool(type_tag<T>()).remove(e); }
 

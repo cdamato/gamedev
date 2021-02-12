@@ -127,7 +127,7 @@ bool inventory_motion(entity e, const event& ev, engine& game) {
 
 void inventory_init(entity e, engine& g, entity parent, c_inventory& inv, point<u16> origin) {
 	g.ui.focus = e;
-    c_widget& w = g.ecs.add_component<c_widget>(e);
+    g.ecs.add_component<c_widget>(e);
 	make_parent(parent, e, g);
 	c_selection& select = g.ecs.add_component<c_selection>(e);
 
