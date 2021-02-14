@@ -59,10 +59,10 @@ public:
                 auto new_bitset = _container->_markers;
                 new_bitset >>= _index;
                 new_bitset &= std::bitset<array_size>(0xFFFFFFFFFFFFFFFF);
-                if (new_bitset.to_ulong() != 0) {
-                    _index += __builtin_ctzll(new_bitset.to_ulong());
+                if (new_bitset.to_ullong() != 0) {
+                    _index += __builtin_ctzll(new_bitset.to_ullong());
                 } else {
-                    _index += 64; //advance by a whole ulong. since this entire ulong is empty
+                    _index += 64; //advance by a whole ullong. since this entire ullong is empty
                 }
                 if (_index >= array_size) {
                     _index = array_size;
