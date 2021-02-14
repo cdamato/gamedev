@@ -27,6 +27,7 @@ void engine::run_tick() {
     renderer.clear_sprites();
 	for (auto& sprite : ecs.components.get_pool(type_tag<sprite>())) {
         for (int i = 0; i < sprite.num_subsprites(); i++) {
+            if (sprite.get_subsprite(i).layer == render_layers::null) continue;
             renderer.add_sprite(sprite.get_subsprite(i));
         }
 	}

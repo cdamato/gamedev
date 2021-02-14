@@ -26,8 +26,8 @@ LDFLAGS_REQ += $(addprefix -l, $(LIBS))
 
 
 $(BUILD_DIR)_rpggame: $(OBJECTS)
-	@echo "[LD] $(INCLUDE_FLAGS)"
-	@$(CXX) $(OBJECTS) $(LDFLAGS) $(LDFLAGS_REQ) -o "$@" 
+	@echo "[LD] $@"
+	@$(CXX) $(OBJECTS) $(CXXFLAGS) $(LDFLAGS) $(LDFLAGS_REQ) -o "$@"
 
 -include $(DEPFILES)
  

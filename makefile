@@ -1,4 +1,5 @@
-Windows: 
+Windows:
+	@mkdir -p "Windows"
 	$(MAKE) -f make_impl BUILD_DIR=Windows CXX="x86_64-w64-mingw32-g++-posix" LIBS="mingw32 opengl32 gdi32 glew32" LDFLAGS_IN="-static" CXXFLAGS_IN="-g3 -municode" INCLUDE_DIR="/home/caroline/win32_includes/include/" LIBRARY_DIR=/home/caroline/win32_includes/lib/ 
 	  
 Debug: 
@@ -8,8 +9,15 @@ Debug:
 Linux: 
 	@mkdir -p "Linux"
 	$(MAKE) -f make_impl BUILD_DIR=Linux CXX="g++-8" LIBS="freetype GLEW GL X11" CXXFLAGS_IN="-O3"
-	
+
+Test:
+	@mkdir -p "Test"
+	$(MAKE) -f make_impl BUILD_DIR=Test CXX="g++-10" LIBS="freetype GLEW GL X11" CXXFLAGS_IN="--coverage" LIBRARY_DIR=/usr/local/lib
+
 clean: 
 	rm -rf Debug/
+	rm -rf Debug_rpggame
+	rm -rf Test/
+	rm -rf Test_rpggame
 
-.PHONY: Windows Debug Linux clean	 
+.PHONY: Windows Debug Linux Test clean
