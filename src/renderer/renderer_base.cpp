@@ -1,15 +1,12 @@
-#include "renderer.h"
 #include <cstring>
-
-#include <cmath>
 #include <common/png.h>
 #include <common/parser.h>
-#include <ecs/components.h>
+#include "renderer.h"
+
 
 static constexpr unsigned VERTICES_PER_QUAD = 4;
 static constexpr unsigned NUM_QUADS = 1024;
 static constexpr unsigned buffer_size = NUM_QUADS * VERTICES_PER_QUAD * sizeof(vertex);
-
 
 std::multiset<subsprite>& renderer_base::get_set(render_layers layer) {
     if (layer == render_layers::sprites)
@@ -21,16 +18,8 @@ std::multiset<subsprite>& renderer_base::get_set(render_layers layer) {
     throw "oops";
 }
 
-
-void renderer_base::add_sprite(sprite& spr) {
-    const vertex* ptr = spr.vertices().data();
-    for (u32 i = 0; i < spr.num_subsprites(); i++) {
-        render_layers layer = spr.get_subsprite(i).layer;
-        if (layer != render_layers::null) {
-            get_set(layer).insert(subsprite{ptr, spr.get_subsprite(i).size, spr.get_subsprite(i).tex});
-        }
-        ptr += spr.get_subsprite(i).size * VERTICES_PER_QUAD;
-    }
+void renderer_base::add_sprite(subsprite& spr) {
+    get_set(spr.layer).insert(spr);
 }
 
 void renderer_base::clear_sprites() {

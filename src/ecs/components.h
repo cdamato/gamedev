@@ -85,13 +85,6 @@ struct weapon {
 
 class sprite : public component_base {
 public:
-	struct subsprite {
-		texture tex = null_texture;
-		u16 size = 0;
-		u16 start = 0;
-		render_layers layer;
-	};
-
 	rect<f32> get_dimensions(u8 subsprite = 255);
 	u32 gen_subsprite(u16 num_quads, render_layers layer);
 

@@ -55,4 +55,17 @@ enum class render_layers : u8 {
     ui
 };
 
+struct subsprite {
+    texture tex = null_texture;
+    u16 size = 0;
+    u16 start = 0;
+    vertex* data;
+    render_layers layer;
+
+    inline bool operator < (const subsprite& rhs ) const { return tex < rhs.tex; }
+};
+
+
+static constexpr unsigned vertices_per_quad = 4;
+
 #endif //GRAPHICAL_TYPES_H

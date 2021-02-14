@@ -1,12 +1,5 @@
-#include <engine/engine.h>
 #include "renderer.h"
 #include <GL/glew.h>
-#include <map>
-
-static constexpr unsigned VERTICES_PER_QUAD = 4;
-static constexpr unsigned NUM_QUADS = 1024;
-static constexpr unsigned buffer_size = NUM_QUADS * VERTICES_PER_QUAD * sizeof(vertex);
-
 
 
 void bind_texture(texture tex) {
@@ -47,7 +40,7 @@ public:
 
 
 vertex* map_buffer() noexcept {
-    glBufferData(GL_ARRAY_BUFFER, buffer_size, nullptr, GL_STREAM_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, renderer_base::buffer_size, nullptr, GL_STREAM_DRAW);
     return static_cast<vertex*>(glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY));
 }
 
@@ -110,7 +103,7 @@ renderer_gl::renderer_gl() {
     data = new impl;
 
     load_textures();
-    std::vector<u16> index_buffer = std::vector<u16>(NUM_QUADS * 6);
+    std::vector<u16> index_buffer = std::vector<u16>(quads_in_buffer * 6);
 
 	size_t vert_index = 0;
 	size_t array_index = 0;

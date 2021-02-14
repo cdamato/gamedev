@@ -26,7 +26,9 @@ void engine::run_tick() {
     renderer.set_camera(offset);
     renderer.clear_sprites();
 	for (auto& sprite : ecs.components.get_pool(type_tag<sprite>())) {
-        renderer.add_sprite(sprite);
+        for (int i = 0; i < sprite.num_subsprites(); i++) {
+            renderer.add_sprite(sprite.get_subsprite(i));
+        }
 	}
 
     point<f32> end_pos = ecs.get_component<sprite>(player_id()).get_dimensions().origin;

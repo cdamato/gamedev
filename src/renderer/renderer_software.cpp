@@ -15,7 +15,7 @@ static constexpr unsigned NUM_QUADS = 1024;
 void renderer_software::clear_screen() {
     framebuffer.data = std::vector<u8>(resolution.w * resolution.h * 4, 255);
 }
-
+#include <engine/engine.h>
 texture renderer_software::add_texture(std::string name) {
     texture tex = texture_map[name];
     tex = texture_counter;

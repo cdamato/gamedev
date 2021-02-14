@@ -45,8 +45,9 @@ void tile_data::set_data(u8 quad_index, u8 type) {
 
 
 u32 sprite::gen_subsprite(u16 num_quads, render_layers layer) {
-    _subsprites.push_back(subsprite{null_texture, num_quads, _vertices.size() / 4, layer});
+    size_t old_size = _vertices.size();
     _vertices.resize(_vertices.size() + (4 * num_quads));
+    _subsprites.push_back(subsprite{null_texture, num_quads, old_size, _vertices.data() + old_size, layer});
     return _subsprites.size() - 1;
 }
 
