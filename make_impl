@@ -5,34 +5,31 @@ LIBS :=
 INCLUDE_DIR :=  
 LIBRARY_DIR := 
 CXXFLAGS_IN :=
-LDFLAGS_IN :=
+SOURCE_DIRECTORIES :=
+TARGET_EXE := game/rpggame
 
 THIS_MAKEFILE := $(firstword $(MAKEFILE_LIST))
-SOURCE_PATH := $(addsuffix src/, $(dir $(realpath $(THIS_MAKEFILE))))
+SOURCE_PATH := $(dir $(realpath $(THIS_MAKEFILE)))
 
-SOURCE_DIRECTORIES := $(SOURCE_PATH)
-SOURCE_DIRECTORIES += $(dir $(wildcard $(SOURCE_PATH)*/.))
-SOURCES := $(foreach d,$(SOURCE_DIRECTORIES),\
-	$(wildcard $(d)*.cpp) $(wildcard $(d)*.s))
-OBJECTS := $(patsubst $(SOURCE_PATH)%,$(BUILD_DIR)/%.o,$(SOURCES))
+SOURCES := $(foreach d,$(SOURCE_DIRECTORIES),$(wildcard $(d)*.cpp))
+OBJECTS := $(patsubst $(SOURCE_DIR)%,$(BUILD_DIR)/%.o,$(SOURCES))
 DEPFILES := $(patsubst %.o,%.d,$(OBJECTS))
-  
 
 CXXFLAGS += -std=c++17 $(CXXFLAGS_IN)
-INCLUDE_FLAGS += -I$(SOURCE_PATH) -I/usr/include/freetype2/  -I$(INCLUDE_DIR)
+INCLUDE_FLAGS += -I$(SOURCE_PATH)/src -I/usr/include/freetype2/  -I$(INCLUDE_DIR)
 
 LDFLAGS_REQ += $(LDFLAGS_IN) -L$(LIBRARY_DIR) 
 LDFLAGS_REQ += $(addprefix -l, $(LIBS))  
 
 
-$(BUILD_DIR)_rpggame: $(OBJECTS)
-	@echo "[LD] $@"
+$(TARGET_EXE): $(OBJECTS)
+	@echo "[LD] $(SOURCE_DIRECTORIES)"
 	@$(CXX) $(OBJECTS) $(CXXFLAGS) $(LDFLAGS) $(LDFLAGS_REQ) -o "$@"
 
 -include $(DEPFILES)
  
 
-$(BUILD_DIR)/%.o: $(SOURCE_PATH)% $(THIS_MAKEFILE) 
+$(BUILD_DIR)/%.o: $(SOURCE_PATH)% $(THIS_MAKEFILE)
 	@echo "[CXX] $@"
 	@mkdir -p "$(dir $@)"
 	@$(CXX) $(LDFLAGS_REQ) $(CXXFLAGS) $(INCLUDE_FLAGS)  -M -MMD -MP -c "$<" -o "$@"

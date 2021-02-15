@@ -1,9 +1,9 @@
-#include "world.h"
-#include <engine/engine.h>
+#include "main/world.h"
+#include "engine/engine.h"
 #include <mutex>
-#include <common/parser.h>
+#include "common/parser.h"
 #include <fstream>
-#include "basic_entity_funcs.h"
+#include "main/basic_entity_funcs.h"
 
 #define MS_PER_FRAME 16600
 
