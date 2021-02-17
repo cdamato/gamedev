@@ -89,6 +89,8 @@ public:
 	void run_tick();
 	bool accept_event(event&);
 
+    std::multiset<subsprite> sprites;
+
 	template <typename f, typename... Args>
 	entity create_entity(f func, Args&&... args) {
 		entity e = ecs.entities.add_entity();

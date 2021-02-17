@@ -16,7 +16,7 @@ public:
 
     void clear_sprites();
     void add_sprite(subsprite&);
-    void render_layer(render_layers layer);
+    void render_layer(std::multiset<subsprite>);
 
     texture get_texture(std::string name);
     void set_texture_data(texture, texture_data);
@@ -25,21 +25,14 @@ public:
     static constexpr unsigned buffer_size = quads_in_buffer * vertices_per_quad * sizeof(vertex);
 protected:
     virtual void process_texture_data(texture) = 0;
-    virtual void render_batch(render_layers) = 0;
+    virtual void render_batch(texture, render_layers) = 0;
     void load_textures();
-
-    std::multiset<subsprite>& get_set(render_layers layer);
-
-    std::multiset<subsprite> sprites;
-    std::multiset<subsprite> ui;
-    std::multiset<subsprite> text;
 
     std::vector<texture_data> texture_datas;
     std::unordered_map<std::string, texture> texture_map;
+    
     vertex* mapped_vertex_buffer = nullptr;
-    texture current_tex = null_texture;
     size_t quads_batched = 0;
-
 };
 
 class renderer_gl : public renderer_base {
@@ -54,7 +47,7 @@ private:
     struct impl;
     impl* data = nullptr;
 
-    void render_batch(render_layers);
+    void render_batch(texture, render_layers);
 };
 
 
@@ -73,7 +66,7 @@ private:
     point<f32> camera;
 
     size_t texture_counter = 0;
-    void render_batch(render_layers);
+    void render_batch(texture, render_layers);
 };
 
 #endif //RENDERER_H

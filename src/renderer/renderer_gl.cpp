@@ -1,5 +1,6 @@
 #include "renderer.h"
 #include <GL/glew.h>
+#include <fstream>
 
 
 void bind_texture(texture tex) {
@@ -20,10 +21,94 @@ public:
 };
 
 
-// forward-declare functions
-shader gen_text_shader();
-shader gen_ui_shader();
-shader gen_map_shader();
+
+shader::shader(u32 vert, u32 frag) {
+    _ID = glCreateProgram();
+    glAttachShader(_ID, vert);
+    glAttachShader(_ID, frag);
+    glLinkProgram(_ID);
+    glDetachShader(_ID, vert);
+    glDetachShader(_ID, frag);
+}
+
+shader::~shader() {
+    glDeleteProgram(_ID);
+};
+
+void shader::register_uniform(std::string name){
+    bind();
+    attributes[name] = glGetUniformLocation(_ID, name.c_str());
+};
+
+template <typename... Args>
+void shader::update_uniform(std::string name, Args... args) {
+    bind();
+    if constexpr (sizeof...(args) == 3)
+        glUniform3f(attributes[name], args...);
+    if constexpr (sizeof...(args) == 2)
+        glUniform2f(attributes[name], args...);
+    if constexpr (sizeof...(args) == 1) {
+        if constexpr(std::is_same<Args... ,float>::value) {
+            glUniform1f(attributes[name], args...);
+        } else {
+            glUniformMatrix4fv(attributes[name], 1, GL_FALSE,args...);
+        }
+    }
+}
+void shader::bind() {
+    glUseProgram(_ID);
+};
+
+void read_shader_source(std::string& shader_code, std::string filename) {
+    std::ifstream shader_stream(filename, std::ios::in);
+    if (!shader_stream.is_open()) {
+        throw std::runtime_error("Failed to load shaders.");
+    }
+    shader_code = std::string (std::istreambuf_iterator<char>{shader_stream}, {});
+    shader_stream.close();
+}
+
+u32 gen_shader_stage(u32 type, std::string filename) {
+    std::string shader_code;
+    read_shader_source(shader_code, filename);
+
+    const char* shader_ptr =shader_code.c_str();
+    u32 ID = glCreateShader(type);
+
+    glShaderSource(ID, 1, &shader_ptr, 0);
+    glCompileShader(ID);
+    i32 Result = GL_FALSE;
+    int InfoLogLength;
+
+    glGetShaderiv(ID, GL_COMPILE_STATUS, &Result);
+    glGetShaderiv(ID, GL_INFO_LOG_LENGTH, &InfoLogLength);
+    if (InfoLogLength > 0)
+    {
+        std::vector<char>shaderErrorMessage(InfoLogLength + 1);
+        glGetShaderInfoLog(ID, InfoLogLength, NULL, &shaderErrorMessage[0]);
+        printf("%s\n", &shaderErrorMessage[0]);
+    }
+    return ID;
+}
+
+shader gen_map_shader() {
+    u32 frag = gen_shader_stage(GL_FRAGMENT_SHADER, "shaders/shader.frag");
+    u32 vert= gen_shader_stage (GL_VERTEX_SHADER, "shaders/world.vert");
+    return shader(frag, vert);
+}
+
+shader gen_ui_shader() {
+    u32 frag = gen_shader_stage(GL_FRAGMENT_SHADER, "shaders/shader.frag");
+    u32 vert= gen_shader_stage (GL_VERTEX_SHADER, "shaders/ui.vert");
+    return shader(frag, vert);
+}
+
+shader gen_text_shader() {
+    u32 frag = gen_shader_stage(GL_FRAGMENT_SHADER, "shaders/text.frag");
+    u32 vert= gen_shader_stage (GL_VERTEX_SHADER, "shaders/ui.vert");
+    return shader(frag, vert);
+}
+
 
 
 class renderer_gl::impl {
@@ -49,7 +134,7 @@ vertex* unmap_buffer() noexcept {
     return nullptr;
 }
 
-void renderer_gl::render_batch(render_layers layer) {
+void renderer_gl::render_batch(texture current_tex, render_layers layer) {
     if(quads_batched == 0) {
         return;
     }
@@ -83,16 +168,12 @@ void GLAPIENTRY MessageCallback( GLenum source, GLenum type, GLuint id,
             type, severity, message );
 }
 
-
-
 texture renderer_gl::add_texture(std::string name) {
     u32 obj;
     glGenTextures(1, &obj);
     texture_map[name] = obj;
     return obj;
 }
-
-
 
 renderer_gl::renderer_gl() {
     glewInit();
@@ -184,174 +265,4 @@ void renderer_gl::process_texture_data(texture tex) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
-}
-
-
-shader::shader(u32 vert, u32 frag) {
-    _ID = glCreateProgram();
-    glAttachShader(_ID, vert);
-    glAttachShader(_ID, frag);
-    glLinkProgram(_ID);
-    glDetachShader(_ID, vert);
-    glDetachShader(_ID, frag);
-}
-
-shader::~shader() {
-    glDeleteProgram(_ID);
-};
-
-void shader::register_uniform(std::string name){
-    bind();
-    attributes[name] = glGetUniformLocation(_ID, name.c_str());
-};
-
-template <typename... Args>
-void shader::update_uniform(std::string name, Args... args) {
-    bind();
-    if constexpr (sizeof...(args) == 3)
-        glUniform3f(attributes[name], args...);
-    if constexpr (sizeof...(args) == 2)
-        glUniform2f(attributes[name], args...);
-    if constexpr (sizeof...(args) == 1) {
-        if constexpr(std::is_same<Args... ,float>::value) {
-            glUniform1f(attributes[name], args...);
-        } else {
-            glUniformMatrix4fv(attributes[name], 1, GL_FALSE,args...);
-        }
-    }
-}
-void shader::bind() {
-    glUseProgram(_ID);
-};
-
-
-u32 gen_shader(u32 type, const char* code)
-{
-	u32 ID = glCreateShader(type);
-	glShaderSource(ID, 1, &code, 0);
-	glCompileShader(ID);
-	i32 Result = GL_FALSE;
-	int InfoLogLength;
-
-	glGetShaderiv(ID, GL_COMPILE_STATUS, &Result);
-	glGetShaderiv(ID, GL_INFO_LOG_LENGTH, &InfoLogLength);
-	if (InfoLogLength > 0)
-	{
-		std::vector<char>shaderErrorMessage(InfoLogLength + 1);
-		glGetShaderInfoLog(ID, InfoLogLength, NULL, &shaderErrorMessage[0]);
-		printf("%s\n", &shaderErrorMessage[0]);
-	}
-
-	return ID;
-}
-
-shader gen_map_shader()
-{
-	const char* frag_code =
-		"#version 120\n"
-
-		"uniform sampler2D tex;"
-		"varying vec2 uv_out;"
-
-		"void main()"
-		"{"
-			"gl_FragColor = vec4(texture2D(tex, uv_out).rgba);"
-		"}";
-	const char* vert_code =
-		"#version 120\n"
-
-		"uniform vec2 viewport;"
-		"uniform mat4 viewMatrix;"
-		"uniform float z_index;"
-
-		"attribute vec3 pos;"
-		"attribute vec2 uv;"
-
-
-		"varying vec2 uv_out;"
-
-		"void main()"
-		"{"
-			"gl_Position =  viewMatrix * vec4(pos.x * viewport.x - 1.0, pos.y * -viewport.y + 1.0, "
-			"1.0 - (z_index / 10), 1);"
-			"uv_out = uv;"
-		"}";
-
-	u32 frag = gen_shader(GL_FRAGMENT_SHADER, frag_code);
-	u32 vert= gen_shader (GL_VERTEX_SHADER, vert_code);
-
-	return shader(frag, vert);
-
-}
-
-
-shader gen_ui_shader() {
-	const char* frag_code =
-		"#version 120\n"
-
-		"uniform sampler2D tex;"
-		"varying vec2 uv_out;"
-
-		"void main()"
-		"{"
-			"gl_FragColor = vec4(texture2D(tex, uv_out).rgba);"
-		"}";
-
-	const char* vert_code =
-		"#version 120\n"
-
-		"uniform vec2 viewport;"
-		"uniform float z_index;"
-
-		"attribute vec3 pos;"
-		"attribute vec2 uv;"
-
-		"varying vec2 uv_out;"
-
-		"void main()"
-		"{"
-			"gl_Position =  vec4(pos.x * viewport.x - 1.0, pos.y  * -viewport.y + 1.0, 0.5 - (z_index / 10), 1);"
-			"uv_out = uv;"
-		"}";
-
-
-	u32 frag = gen_shader(GL_FRAGMENT_SHADER, frag_code);
-	u32 vert = gen_shader(GL_VERTEX_SHADER, vert_code);
-
-	return shader(frag, vert);
-}
-
-
-shader gen_text_shader()
-{
-	const char* frag_code =
-		"#version 120\n"
-
-		"uniform sampler2D tex;"
-		"uniform vec3 color;"
-
-		"varying vec2 uv_out;"
-
-		"void main() {"
-			"gl_FragColor = vec4(color.rgb, texture2D(tex, uv_out).r);"
-		"}";
-	const char* vert_code =
-		"#version 120\n"
-
-		"uniform vec2 viewport;"
-		"attribute vec3 pos;"
-		"attribute vec2 uv;"
-
-		"varying vec2 uv_out;"
-
-		"void main()"
-		"{"
-			"gl_Position =  vec4(pos.x * viewport.x - 1.0, pos.y  * -viewport.y + 1.0, 0.5, 1);"
-			"uv_out = uv;"
-		"}";
-
-	u32 frag = gen_shader(GL_FRAGMENT_SHADER, frag_code);
-	u32 vert = gen_shader(GL_VERTEX_SHADER, vert_code);
-
-	return shader(frag, vert);
 }

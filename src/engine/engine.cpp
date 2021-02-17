@@ -3,7 +3,6 @@
 #include "../main/basic_entity_funcs.h"
 
 
-
 void engine::run_tick() {
 	point<f32> start_pos = ecs.get_component<sprite>(player_id()).get_dimensions().origin;
 
@@ -25,10 +24,11 @@ void engine::run_tick() {
 
     renderer.set_camera(offset);
     renderer.clear_sprites();
+    sprites.clear();
 	for (auto& sprite : ecs.components.get_pool(type_tag<sprite>())) {
         for (int i = 0; i < sprite.num_subsprites(); i++) {
             if (sprite.get_subsprite(i).layer == render_layers::null) continue;
-            renderer.add_sprite(sprite.get_subsprite(i));
+            sprites.emplace(sprite.get_subsprite(i));
         }
 	}
 
@@ -77,16 +77,10 @@ void engine::destroy_entity(entity e) {
     }
 }
 
-
-
 void engine::render() {
-	renderer.render_layer(render_layers::sprites);
-	renderer.render_layer(render_layers::ui);
-	renderer.render_layer(render_layers::text);
-
+    renderer.render_layer(sprites);
 	window.swap_buffers();
 }
-
 
 void logic_manager::add(logic_func func) {
     logic.push_back(func);

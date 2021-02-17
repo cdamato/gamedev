@@ -8,36 +8,22 @@ static constexpr unsigned VERTICES_PER_QUAD = 4;
 static constexpr unsigned NUM_QUADS = 1024;
 static constexpr unsigned buffer_size = NUM_QUADS * VERTICES_PER_QUAD * sizeof(vertex);
 
-std::multiset<subsprite>& renderer_base::get_set(render_layers layer) {
-    if (layer == render_layers::sprites)
-        return sprites;
-    if (layer == render_layers::ui)
-        return ui;
-    if (layer == render_layers::text)
-        return text;
-    throw "oops";
-}
-
-void renderer_base::add_sprite(subsprite& spr) {
-    get_set(spr.layer).insert(spr);
-}
-
 void renderer_base::clear_sprites() {
-    sprites.clear();
-    text.clear();
-    ui.clear();
+   // //sprites.clear();
+   // text.clear();
+  //  ui.clear();
 }
 
-void renderer_base::render_layer(render_layers layer) {
-    auto& spriteset = get_set(layer);
-    if (spriteset.size() == 0 ) return;
+void renderer_base::render_layer(std::multiset<subsprite> sprites) {
+    if (sprites.size() == 0 ) return;
+    texture current_tex = (*sprites.begin()).tex;
+    render_layers layer = (*sprites.begin()).layer;
 
-    current_tex = (*spriteset.begin()).tex;
-
-    for(auto sprite : spriteset) {
+    for(auto sprite : sprites) {
         if (sprite.tex != current_tex) {
-            render_batch(layer);
+            render_batch(current_tex, layer);
             current_tex = sprite.tex;
+            layer = sprite.layer;
         }
         int quads_remaining = sprite.size;
         while (quads_remaining > 0) {
@@ -50,11 +36,12 @@ void renderer_base::render_layer(render_layers layer) {
             memcpy(dest_ptr, src_ptr, bytes_to_batch);
             if (quads_batched == NUM_QUADS) {
                 current_tex = sprite.tex;
-                render_batch(layer);
+                layer = sprite.layer;
+                render_batch(current_tex,layer);
             }
         }
     }
-    render_batch(layer);
+    render_batch(current_tex, layer);
 }
 
 
