@@ -29,6 +29,7 @@ struct s_shooting {
 
 	std::vector<bullet> bullet_types;
 	bullet_func shoot;
+	void run(pool<sprite>&, pool<c_weapon_pool>, c_player&);
 };
 
 
@@ -55,8 +56,6 @@ private:
 	bool reconstruct_atlas = true;
 };
 
-
-void shooting_player(s_shooting&, sprite&, c_player&, c_weapon_pool&);
 void system_collison_run(pool<c_collision>&, pool<sprite>&, c_mapdata&);
 void system_velocity_run(pool<c_velocity>&, pool<sprite>&);
 
@@ -66,60 +65,6 @@ public:
     entity active_interact = 65535;
     void run(pool<c_proximity>&, pool <c_keyevent>&, sprite&);
 };
-//void run_proximity(s_proximity& sys, c_proximity* c);
-//oid run_player_interact(s_proximity& sys, sprite*, c_player*);
-//static void finish_proximity(s_proximity& sys) { sys.interactables.clear(); }
-
-
-
-/*
-void run_proximity(s_proximity& sys, c_proximity* c) {
-    if (c->type == c_proximity::type::interactable)
-        sys.interactables.emplace_back(std::reference_wrapper(c));
-    else if (c->type == c_proximity::weapon)
-        sys.weapons.emplace_back(std::reference_wrapper(c));
-}
-
-bool test_proximity_collision(c_proximity* c, sprite* spr) {
-    if(c->shape == c_proximity::shape::rectangle)
-        return test_collision(rect<f32>(c->origin, c->radii), spr->dimensions());
-    if(c->shape == c_proximity::shape::elipse) {
-        point<f32> p = spr->dimensions().center();
-        f32 left_side = pow(p.x - c->origin.x, 2) / pow(c->radii.w, 2);
-        f32 right_side = pow(p.y - c->origin.y, 2) / pow(c->radii.h, 2);
-
-        return left_side + right_side <= 1;
-    }
-
-    return false;
-}
-
-void run_player_interact(s_proximity& sys, sprite* s, c_player* p) {
-    std::vector<f32> scores(sys.interactables.size(), 65535);
-
-    for(size_t i = 0; i < sys.interactables.size(); i++) {
-        c_proximity* c = sys.interactables[i];
-
-        //if (test_proximity_collision(c, s))
-        //scores[i] = distance(c.origin, s.dimensions.origin);
-    }
-
-    f32 min = 100;
-    size_t min_index = 65535;
-    for(size_t i = 0; i < scores.size(); i++) {
-        if(scores[i] < min) {
-            min = scores[i];
-            min_index = i;
-        }
-    }
-
-    if(min_index != 65535)
-        sys.active_interact = sys.interactables[min_index]->entity;
-}
-
-*/
-
-
 
 struct system_manager {
 	s_health health;

@@ -10,7 +10,7 @@
 void init_main_menu(engine& eng);
 void test_enemies_gone(engine& e) {
 
-    auto& enemy_pool = e.ecs.get_pool<c_enemy>();
+    auto& enemy_pool = e.ecs.pool<c_enemy>();
     if (enemy_pool.size() == 0) {
         e.logic.remove(&test_enemies_gone);
         init_main_menu(e);

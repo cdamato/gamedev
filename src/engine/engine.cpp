@@ -46,7 +46,7 @@ engine::engine()  : settings(), window(settings){
 
     ecs._map_id = create_entity([&](entity, engine&){});
 	ecs._player_id = create_entity([&](entity, engine&){});
-
+    ecs.add_component<c_player>(ecs._player_id);
     ecs.add_component<c_mapdata>(map_id());
 
 
@@ -128,7 +128,7 @@ bool test_collision(rect<f32> r, point<f32> p) {
     bool x = test_range(r.origin.x, p.x, r.bottom_right().x);
     bool y = test_range(r.origin.y, p.y, r.bottom_right().y);
 
-    return ((x == true) && (y == true));
+    return (x && y);
 }
 
 template <int type>

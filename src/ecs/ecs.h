@@ -51,7 +51,7 @@ public:
 	}
 
 	template <typename T>
-    constexpr pool<T>& get_pool() {return components.get_pool(type_tag<T>()); }
+    constexpr pool<T>& pool() { return components.get_pool(type_tag<T>()); }
 
 private:
 	entity_manager entities;

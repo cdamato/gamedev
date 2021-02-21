@@ -21,16 +21,12 @@ struct component_base {
 /*******************************/
 
 
-
-
 struct tile_data {
 	std::bitset<8> collision;
 
 	bool is_occupied(u8, u8);
 	void set_data(u8, u8);
 };
-
-
 enum collision_flags : u8 {
 	// damage teams
 	ally = 1,

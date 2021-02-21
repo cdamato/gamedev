@@ -2,7 +2,7 @@
 #define ENGINE_H
 
 #include <ecs/ecs.h>
-#include <renderer/renderer.h>
+#include "renderer.h"
 #include <unordered_map>
 
 class engine;
