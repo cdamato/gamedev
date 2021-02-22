@@ -143,16 +143,16 @@ void inventory_init(entity e, engine& g, entity parent, c_inventory& inv, point<
 	int num_grid_elements = select.grid_size.w * select.grid_size.h;
 	sprite& spr = g.ecs.add_component<sprite>(e);
 	spr.gen_subsprite(num_grid_elements, render_layers::ui  );
-	spr.get_subsprite(0).tex = g.renderer.get_texture("highlight");
+	spr.get_subsprite(0).tex = g.renderer().get_texture("highlight");
 
 	int item_spr = spr.gen_subsprite(num_grid_elements, render_layers::ui);
-	spr.get_subsprite(item_spr).tex = g.renderer.get_texture("items");
+	spr.get_subsprite(item_spr).tex = g.renderer().get_texture("items");
 
 
     select.box_index = spr.gen_subsprite(1, render_layers::null);
     spr.set_pos(point<f32>(0, 0), element_size, select.box_index, 0);
     spr.set_uv(point<f32>(0.5, 0), size<f32>(0.5, 1), select.box_index, 0);
-    spr.get_subsprite(select.box_index).tex = g.renderer.get_texture("highlight");
+    spr.get_subsprite(select.box_index).tex = g.renderer().get_texture("highlight");
 
 
 	int index = 0;

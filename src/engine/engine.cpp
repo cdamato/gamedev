@@ -20,10 +20,10 @@ void engine::run_tick() {
         ui.handle_hover(a, *this);
     }
 
-    renderer.set_texture_data(ecs.systems.health.get_texture(), ecs.systems.health.get_data());
+    renderer().set_texture_data(ecs.systems.health.get_texture(), ecs.systems.health.get_data());
 
-    renderer.set_camera(offset);
-    renderer.clear_sprites();
+    renderer().set_camera(offset);
+    renderer().clear_sprites();
     sprites.clear();
 	for (auto& sprite : ecs.components.get_pool(type_tag<sprite>())) {
         for (int i = 0; i < sprite.num_subsprites(); i++) {
@@ -39,6 +39,11 @@ void engine::run_tick() {
 
 engine::engine()  : settings(), window(settings){
 
+    if (settings.flags.test(window_flags::use_software_render)) {
+        _renderer = std::unique_ptr<renderer_base>(new renderer_software);
+    } else {
+        _renderer = std::unique_ptr<renderer_base>(new renderer_gl);
+    }
 	ecs.systems.shooting.bullet_types.push_back(s_shooting::bullet{size<f32>(0.3, 0.6), point<f32>(8, 8), "bullet"});
 	ecs.systems.shooting.shoot = [this] (std::string s, size<f32> d, point<f32> v, point<f32> o, point<f32> t, collision_flags a) {
 		create_entity(egen_bullet, s, d, v, o, t, a);
@@ -50,7 +55,7 @@ engine::engine()  : settings(), window(settings){
     ecs.add_component<c_mapdata>(map_id());
 
 
-    ecs.systems.health.set_texture(renderer.add_texture("healthbar_atlas"));
+    ecs.systems.health.set_texture(renderer().add_texture("healthbar_atlas"));
 
     auto& inv = ecs.add_component<c_inventory>(player_id());
     ecs.add_component<sprite>(player_id());
@@ -61,7 +66,7 @@ engine::engine()  : settings(), window(settings){
         inv.data.add(i, item{h, 0});
     }
 
-	renderer.set_viewport(settings.resolution);
+	renderer().set_viewport(settings.resolution);
 	create_entity([&](entity e, engine& g){
         g.ecs.add_component<c_widget>(e);
         g.ui.root = e;
@@ -78,8 +83,8 @@ void engine::destroy_entity(entity e) {
 }
 
 void engine::render() {
-    renderer.render_layer(sprites);
-	window.swap_buffers();
+    renderer().render_layer(sprites);
+	window.swap_buffers(renderer());
 }
 
 void logic_manager::add(logic_func func) {
@@ -116,20 +121,9 @@ settings_manager::settings_manager() {
     if (fullscreen == 1) flags.set(window_flags::bordered_window);
 
     if (d->get<bool>("vsync")) flags.set(window_flags::vsync);
-
+    if(d->get<bool>("use_software_renderer")) flags.set(window_flags::use_software_render);
 }
 
-template <typename T>
-bool test_range(T a, T b, T c) {
-    return ((b > a) && (b < c));
-}
-
-bool test_collision(rect<f32> r, point<f32> p) {
-    bool x = test_range(r.origin.x, p.x, r.bottom_right().x);
-    bool y = test_range(r.origin.y, p.y, r.bottom_right().y);
-
-    return (x && y);
-}
 
 template <int type>
 entity at_cursor(entity e, engine& g, point<f32> cursor) {

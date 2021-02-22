@@ -393,10 +393,7 @@ void s_health::update_healthbars(pool<c_healthbar>& healthbars, pool<c_health>& 
 /*     s_proxinteract     */
 /**************************/
 
-bool AABB_collision(rect<f32> a, rect<f32> b) {
-    return (a.origin.x <= b.top_right().x && a.top_right().x >= b.origin.x) &&
-           (a.origin.y <= b.bottom_left().y && a.bottom_left().y >= b.origin.y);
-}
+
 
 bool test_proximity_collision(c_proximity& c, sprite& spr) {
     if(c.shape == c_proximity::shape::rectangle)

@@ -12,7 +12,7 @@ Debug:
 	  
 Release:
 	@mkdir -p "Build/Release"
-	$(MAKE) -f make_impl BUILD_DIR=Build/Release SOURCE_DIR="src" LIBS="freetype GLEW GL X11" CXXFLAGS_IN="-O3"
+	$(MAKE) -f make_impl BUILD_DIR=Build/Release SOURCE_DIRECTORIES="$(SOURCE_DIRS) src/" LIBS="freetype GLEW GL X11" CXXFLAGS_IN="-O3" LIBRARY_DIR=/usr/local/lib
 
 Coverage:
 	@mkdir -p "Build/Unit_Tests"

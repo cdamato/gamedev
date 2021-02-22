@@ -368,7 +368,7 @@ void renderer_gl::process_texture_data(texture tex) {
 
 
 void renderer_software::clear_screen() {
-    framebuffer = image(std::vector<u8>(resolution.w * resolution.h * 4, 255), resolution);
+    framebuffer = image(std::vector<u8>(resolution.w * resolution.h * 4, 0), resolution);
 }
 
 texture renderer_software::add_texture(std::string name) {
@@ -381,7 +381,7 @@ texture renderer_software::add_texture(std::string name) {
 renderer_software::renderer_software() {
     clear_screen();
     load_textures();
-    mapped_vertex_buffer = new vertex[NUM_QUADS * VERTICES_PER_QUAD];
+    mapped_vertex_buffer = new vertex[NUM_QUADS  * VERTICES_PER_QUAD];
 }
 
 void renderer_software::set_viewport(size<u16> screen_size) {
@@ -393,11 +393,11 @@ void renderer_software::set_camera(point<f32> camera_in) {
     camera = camera_in;
 }
 
-point<f32> transpose_vertex(std::vector<f32> matrix, point<f32> vertex) {
+vertex transpose_vertex(std::vector<f32> matrix, vertex vert) {
     point<f32> new_vertex;
-    new_vertex.x = (matrix[0] * vertex.x)  - 1.0;
-    new_vertex.y = (-matrix[3] * vertex.y) + 1.0;
-    return new_vertex;
+    new_vertex.x = (matrix[0] * vert.pos.x) + (matrix[1] * vert.pos.y);
+    new_vertex.y = (matrix[2] * vert.pos.x) + (matrix[3] * vert.pos.y);
+    return vertex {new_vertex, vert.uv};
 }
 
 void renderer_software::render_batch(texture current_tex, render_layers layer) {
@@ -405,20 +405,26 @@ void renderer_software::render_batch(texture current_tex, render_layers layer) {
     switch (layer) {
         case render_layers::text:
         case render_layers::ui:
-            matrix = std::vector<f32> { 2.0f / resolution.w, 0, 0, 2.0f / resolution.h };
+            matrix = std::vector<f32> { 1, 0, 0, 1 };
             break;
         case render_layers::sprites:
+            matrix = std::vector<f32> { 64, 0, 0, 64 };
             break;
     }
+
     if (current_tex >= texture_datas.size()) throw "bruh";
     image tex = texture_datas[current_tex].image_data;
 
-    for (size_t i = 0; i < quads_batched; i+= 4) {
-        auto tl_vert = mapped_vertex_buffer[i];
-        auto br_vert = mapped_vertex_buffer[i + 3];
+    rect<f32> frame(point<f32>(0, 0), resolution.to<f32>());
+    for (size_t i = 0; i < quads_batched * 4; i+= 4) {
+        auto tl_vert = transpose_vertex(matrix, mapped_vertex_buffer[i]);
+        auto br_vert = transpose_vertex(matrix, mapped_vertex_buffer[i + 2]);
 
         size<f32> pos_bounds (br_vert.pos.x - tl_vert.pos.x, br_vert.pos.y - tl_vert.pos.y );
         size<f32> uv_bounds (br_vert.uv.x - tl_vert.uv.x, br_vert.uv.y - tl_vert.uv.y );
+
+        rect<f32> sprite_rect(tl_vert.pos, pos_bounds);
+        if (!AABB_collision(frame, sprite_rect)) continue;
 
         point<u16> texel_origin (tex.size().w * tl_vert.uv.x, tex.size().h * tl_vert.uv.y);
         size<u16> texel_bounds (tex.size().w * uv_bounds.w, tex.size().h * uv_bounds.h);
@@ -430,9 +436,12 @@ void renderer_software::render_batch(texture current_tex, render_layers layer) {
 
         for (size_t y = 0; y < pos_bounds.h; y++) {
             for (size_t x = 0; x < pos_bounds.w; x++) {
+                if (write_index >= resolution.w * resolution.h) break;
                 size_t texel_index = int(texel_pos.x) + int(texel_pos.y) * tex.size().w ;
                 color c = tex.get(texel_index);
-
+                u8 temp = c.r;
+                c.r = c.b;
+                c.b = temp;
                 // TODO - implement alpha blending
                 if (c.a == 255) {
                     framebuffer.write(write_index, c);
@@ -442,6 +451,7 @@ void renderer_software::render_batch(texture current_tex, render_layers layer) {
                 texel_pos.x += texel_ratio.w;
             }
             write_index += resolution.w - (pos_bounds.w); // jump to the beginning of the next row
+            if (write_index >= resolution.w * resolution.h) break;
             texel_pos.y += texel_ratio.h;
             texel_pos.x = texel_origin.x;
         }

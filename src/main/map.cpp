@@ -110,7 +110,7 @@ void set_map(engine& game, size<u16> dimensions, std::vector<u8> tiles) {
     set_tilecollison_lookup(mapdata);
 
 	spr.gen_subsprite(tiles.size(), render_layers::sprites);
-	spr.get_subsprite(0).tex = game.renderer.get_texture("tilemap");
+	spr.get_subsprite(0).tex = game.renderer().get_texture("tilemap");
 
 	spr.set_pos(point<f32>(0,0), size<f32>(dimensions.w, dimensions.h), 0, 0);
 
@@ -191,7 +191,7 @@ void gen_obstaclething(entity e, engine& game, point<f32> pos) {
 	sprite& spr = game.ecs.add_component<sprite>(e);
 	//spr->init(1);
 	spr.gen_subsprite(1, render_layers::sprites);
-	spr.get_subsprite(0).tex = game.renderer.get_texture("crate");
+	spr.get_subsprite(0).tex = game.renderer().get_texture("crate");
 
 	spr.set_pos(pos, size<f32>(1, 1), 0, 0);
 	spr.set_uv(point<f32>(0, 0), size<f32>(1.0f, 1.0f), 0, 0);

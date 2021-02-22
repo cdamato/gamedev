@@ -50,7 +50,7 @@ private:
     void render_batch(texture, render_layers);
 };
 
-
+// This is quite buggy and also has performance issues - even on a modern Ryzen CPU, it's hard to get 60fps.
 class renderer_software : public renderer_base {
 public:
     void clear_screen();
@@ -58,8 +58,10 @@ public:
     renderer_software();
     void set_viewport(size<u16>);
     void set_camera(point<f32>);
+    image& get_framebuffer() { return framebuffer;}
 private:
-    void process_image_data(texture) {}
+    void process_texture_data(texture) {}
+
     image framebuffer;
 
     size<u16> resolution;

@@ -138,7 +138,7 @@ int main() {
 		lag += t.elapsed<timer::microseconds>();
 		t.start();
 
-		w.renderer.clear_screen();
+		w.renderer().clear_screen();
 		loop = w.process_events();
 
 		if ( fpscounter.elapsed<timer::seconds>().count() >= 1.0 ) {

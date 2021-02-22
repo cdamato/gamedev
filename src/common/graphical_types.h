@@ -22,6 +22,7 @@ public:
     image(std::vector<u8> data_in, size<u16> size_in) : _data(data_in), _size(size_in) {}
     color get(size_t i) { return color{_data[i * 4], _data[i * 4 + 1], _data[i * 4 + 2], _data[i * 4 + 3]}; }
     void write(size_t i, color c) {
+        if (i * 4 >= _data.size()) throw "bruh";
         _data[i * 4] = c.r;
         _data[i * 4 + 1] = c.g;
         _data[i * 4 + 2] = c.b;

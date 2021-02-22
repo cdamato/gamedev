@@ -4,6 +4,7 @@
 #include <ecs/ecs.h>
 #include "renderer.h"
 #include <unordered_map>
+#include <memory>
 
 class engine;
 
@@ -29,6 +30,7 @@ public:
 
 enum window_flags {
 	fullscreen,
+	use_software_render,
 	bordered_window,
 	vsync,
 };
@@ -44,18 +46,23 @@ public:
 };
 
 
-class window_impl;
+class window_impl {
+public:
+    virtual bool poll_events(event&) = 0;
+    virtual void swap_buffers(renderer_base&) = 0;
+    virtual size<u16> get_drawable_resolution() = 0;
+};
 class window_manager  : no_copy, no_move {
 public:
 	window_manager(settings_manager& settings);
 	~window_manager();
 
-	void swap_buffers();
+	void swap_buffers(renderer_base& r) { context->swap_buffers(r); };
 	void set_fullscreen(bool);
 	void set_vsync(bool);
 	void set_resolution(size<u16>);
 
-	bool poll_events(event&);
+	bool poll_events(event& e) { return context->poll_events( e); };
 private:
 	window_impl* context;
 	bool fullscreen = false;
@@ -75,12 +82,13 @@ class engine {
 public:
     settings_manager settings;
 	window_manager window;
-    renderer_gl renderer;
 	ecs_engine ecs;
 	ui_manager ui;
     logic_manager logic;
 	//scene_manager?
 	std::vector<entity> scene;
+
+	renderer_base& renderer() { return *_renderer.get(); }
 
 	engine();
 	void set_resolution(size<u16>);
@@ -105,6 +113,8 @@ public:
 	bool in_dungeon = false;
     point<f32> offset = point<f32>(0, 0);
     std::bitset<8> command_states;
+private:
+    std::unique_ptr<renderer_base> _renderer;
 };
 
 

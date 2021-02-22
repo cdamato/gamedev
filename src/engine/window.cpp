@@ -7,78 +7,111 @@
 #include <X11/Xatom.h>
 #include <X11/Xutil.h>
 #include <GL/glx.h>
+#include <sys/shm.h>
+#include <X11/extensions/XShm.h>
+#include <cstring>
 
-struct window_impl {
+struct x11_window : public window_impl{
 	Display                 *dpy;
-	Window                  root;
-	int                     att[5] = { GLX_RGBA, GLX_DEPTH_SIZE, 24, GLX_DOUBLEBUFFER, None };
 	XVisualInfo             *vi;
-	Colormap                cmap;
-	XSetWindowAttributes    swa;
 	Window                  win;
-	GLXContext              glc;
 	XWindowAttributes       gwa;
 
-	window_impl(size<u16> resolution);
+	x11_window(size<u16> resolution);
+    size<u16> get_drawable_resolution() ;
+	bool poll_events(event& e);
 };
 
-window_impl::window_impl(size<u16> resolution) {
-	 dpy = XOpenDisplay(NULL);
+struct gl_backend : public x11_window {
+	GLXContext glc;
+    gl_backend(size<u16> resolution) : x11_window(resolution) {
+        glc = glXCreateContext(dpy, vi, NULL, true);
+        glXMakeCurrent(dpy, win, glc);
+    }
+    void swap_buffers(renderer_base& r) {
+	    glXSwapBuffers(dpy, win);
+	}
+};
 
-	 if(dpy == NULL) {
-	 	printf("\n\tcannot connect to X server\n\n");
-		        exit(0);
-		 }
+struct software_backend : public x11_window {
+    XImage* image;
+  	GC                    gc;
+  	XGCValues             values;
 
-		 root = DefaultRootWindow(dpy);
-		 Atom type = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE", False);
-				 Atom value = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_SPLASH", False);
-				 XChangeProperty(dpy, root, type, XA_ATOM, 32, PropModeReplace, reinterpret_cast<unsigned char*>(&value), 1);
-		 vi = glXChooseVisual(dpy, 0, att);
+   std::vector<char> data;
+    software_backend(size<u16> _resolution) : x11_window(_resolution) {
+        size<u16> resolution = get_drawable_resolution();
+        gc = XCreateGC(dpy, win, 0, &values);
+        data = std::vector<char>(resolution.w * resolution.h * 4, 255);
+        image = XCreateImage(dpy, vi->visual, vi->depth, ZPixmap, 0, data.data(), resolution.w, resolution.h, 8, 0);
+    }
 
-		 if(vi == NULL) {
-		 	printf("\n\tno appropriate visual found\n\n");
-		         exit(0);
-		 }
-		 else {
-		 	printf("\n\tvisual %p selected\n", (void *)vi->visualid); /* %p creates hexadecimal output like in glxinfo */
-		 }
+    // I would REALLY like to find a more efficient way than double-copying the buffers.
 
-		 cmap = XCreateColormap(dpy, root, vi->visual, AllocNone);
-		 swa.colormap = cmap;
-		 swa.event_mask = ExposureMask | KeyPressMask | PointerMotionMask;
-		 win = XCreateWindow(dpy, root, 0, 0, resolution.w, resolution.h, 0,
-				 vi->depth, InputOutput, vi->visual, CWColormap | CWEventMask, &swa);
-		 XMapWindow(dpy, win);
-		 XStoreName(dpy, win, "VERY SIMPLE APPLICATION");
+    void swap_buffers(renderer_base& r) {
+        auto& frame = reinterpret_cast<renderer_software&>(r).get_framebuffer();
+        // X11 is a despicable protocol.
+        // This is the singular worst line of code I have ever written in my entire life, and nothing else comes close.
+        // I am BEGGING for any better solution that doesn't require an extra buffer copy.
+        image->data = reinterpret_cast<char*>(const_cast<u8*>(frame.data()));
+        XPutImage(dpy, win, gc, image, 0, 0, 0, 0, frame.size().w, frame.size().h);
+	}
+};
 
-		 glc = glXCreateContext(dpy, vi, NULL, true);
-		 glXMakeCurrent(dpy, win, glc);
+x11_window::x11_window(size<u16> resolution) {
+    int att[5] = { GLX_RGBA, GLX_DEPTH_SIZE, 24, GLX_DOUBLEBUFFER, None };
+    dpy = XOpenDisplay(NULL);
+	Colormap cmap;
+	XSetWindowAttributes swa;
 
+	Window                  root;
 
-		   Atom wmDeleteMessage = XInternAtom(dpy, "WM_DELETE_WINDOW", False);
+	if(dpy == NULL) {
+	    printf("\n\tcannot connect to X server\n\n");
+		exit(0);
+	}
 
-		 XSetWMProtocols(dpy, win, &wmDeleteMessage, 1);
+    root = DefaultRootWindow(dpy);
+	Atom type = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE", False);
+    Atom value = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_SPLASH", False);
+	XChangeProperty(dpy, root, type, XA_ATOM, 32, PropModeReplace, reinterpret_cast<unsigned char*>(&value), 1);
+	vi = glXChooseVisual(dpy, 0, att);
 
-		 XSelectInput(dpy, win,
-		                  (FocusChangeMask | EnterWindowMask | LeaveWindowMask |
-		                  ExposureMask | ButtonPressMask | ButtonReleaseMask |
-		                  PointerMotionMask | KeyPressMask | KeyReleaseMask |
-		                  PropertyChangeMask | StructureNotifyMask |
-		                  KeymapStateMask ));
+    if(vi == NULL) {
+        printf("\n\tno appropriate visual found\n\n");
+	    exit(0);
+    }
+    else {
+	 	printf("\n\tvisual %p selected\n", (void *)vi->visualid); /* %p creates hexadecimal output like in glxinfo */
+    }
 
+    cmap = XCreateColormap(dpy, root, vi->visual, AllocNone);
+	swa.colormap = cmap;
+	swa.event_mask = ExposureMask | KeyPressMask | PointerMotionMask;
+	win = XCreateWindow(dpy, root, 0, 0, resolution.w, resolution.h, 0, vi->depth, InputOutput, vi->visual, CWColormap | CWEventMask, &swa);
+	XMapWindow(dpy, win);
+	XStoreName(dpy, win, "VERY SIMPLE APPLICATION");
+
+	Atom wmDeleteMessage = XInternAtom(dpy, "WM_DELETE_WINDOW", False);
+	XSetWMProtocols(dpy, win, &wmDeleteMessage, 1);
+
+	XSelectInput(dpy, win,
+              (FocusChangeMask | EnterWindowMask | LeaveWindowMask |
+              ExposureMask | ButtonPressMask | ButtonReleaseMask |
+              PointerMotionMask | KeyPressMask | KeyReleaseMask |
+              PropertyChangeMask | StructureNotifyMask | KeymapStateMask ));
 }
 
-void window_manager::swap_buffers() {
-	glXSwapBuffers(context->dpy, context->win);
+
+size<u16> x11_window::get_drawable_resolution() {
+	XWindowAttributes retval;
+	XGetWindowAttributes(dpy, win, &retval);
+	return size<u16>(retval.width, retval.height);
+
 }
-
-
 
 void window_manager::set_resolution(size<u16> resolution) {
-	XWindowAttributes retval;
-	XGetWindowAttributes(context->dpy, context->win, &retval);
-	//settings.resolution = size<u16>(retval.width, retval.height);
+   // settings.resolution = context->get_drawable_resolution();
 }
 
 
@@ -101,24 +134,30 @@ window_manager::~window_manager() {
 
 
 window_manager::window_manager(settings_manager& settings) {
-	context = new window_impl(settings.resolution);
+    if (settings.flags.test(window_flags::use_software_render)) {
+	    context = new software_backend(settings.resolution);
+    } else {
+	    context = new gl_backend(settings.resolution);
+    }
 	set_resolution(settings.resolution);
+	settings.resolution = context->get_drawable_resolution();
 	set_vsync(settings.flags.test(window_flags::vsync));
 }
 
-bool window_manager::poll_events(event& e) {
+bool x11_window::poll_events(event& e) {
 	e = event();
 	e.set_active(false);
 	XEvent xev;
 
-	if (XPending(context->dpy) == 0) return false;
- 	XNextEvent(context->dpy, &xev);
+	if (XPending(dpy) == 0) return false;
+ 	XNextEvent(dpy, &xev);
 
 	switch (xev.type) {
 	case Expose:
-    	XGetWindowAttributes(context->dpy, context->win, &context->gwa);
-        glViewport(0, 0, context->gwa.width, context->gwa.height);
+    	XGetWindowAttributes(dpy, win, &gwa);
+        glViewport(0, 0, gwa.width, gwa.height);
         break;
+
 	case KeyPress:
 		e.set_active(true);
 		[[fallthrough]];
@@ -159,15 +198,15 @@ bool window_manager::poll_events(event& e) {
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
-struct window_impl {
+struct x11_window {
 	HWND hwnd;
 	HINSTANCE hInstance;
 	WNDCLASS wc      = {0};
 
-	window_impl(size<u16> resolution);
+	x11_window(size<u16> resolution);
 };
 
-window_impl::window_impl(size<u16> resolution) {
+x11_window::x11_window(size<u16> resolution) {
 	hInstance = GetModuleHandle(NULL);
 	WNDCLASS wc      = {0};
 	wc.lpfnWndProc   = WndProc;
@@ -240,7 +279,7 @@ void window_manager::swap_buffers() {
 
 
 window_manager::window_manager() {
-	context = new window_impl(settings.resolution);
+	context = new x11_window(settings.resolution);
 
 	//set_vsync(settings.flags.test(window_flags::vsync));
 }

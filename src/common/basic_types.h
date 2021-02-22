@@ -81,7 +81,24 @@ public:
 
 
 
+template <typename T>
+bool test_range(T a, T b, T c) {
+	return ((b > a) && (b < c));
+}
 
+template <typename T>
+bool test_collision(rect<T> r, point<T> p) {
+	bool x = test_range(r.origin.x, p.x, r.bottom_right().x);
+	bool y = test_range(r.origin.y, p.y, r.bottom_right().y);
+
+	return (x && y);
+}
+
+template <typename T>
+bool AABB_collision(rect<T> a, rect<T> b) {
+    return (a.origin.x <= b.top_right().x && a.top_right().x >= b.origin.x) &&
+           (a.origin.y <= b.bottom_left().y && a.bottom_left().y >= b.origin.y);
+}
 
 struct no_copy {
 	no_copy() = default;

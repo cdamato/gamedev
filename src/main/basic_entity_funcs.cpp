@@ -13,7 +13,7 @@ void egen_bullet(entity e, engine& game, std::string texname,
 
 	sprite& spr = game.ecs.add_component<sprite>(e);
 	spr.gen_subsprite(1, render_layers::sprites);
-	spr.get_subsprite(0).tex = game.renderer.get_texture(texname.c_str());
+	spr.get_subsprite(0).tex = game.renderer().get_texture(texname.c_str());
 	//spr._dimensions = rect<f32>(source, dimensions);
 	spr.set_pos(source, dimensions, 0, 0);
 
@@ -70,7 +70,7 @@ void egen_enemy(entity e, engine& game, point<f32> pos)
 
 	sprite& spr = game.ecs.add_component<sprite>(e);
 	spr.gen_subsprite(1, render_layers::sprites);
-	spr.get_subsprite(0).tex = game.renderer.get_texture("player");
+	spr.get_subsprite(0).tex = game.renderer().get_texture("player");
 	spr.set_pos(pos, size<f32>(1, 1), 0, 0);
  	spr.set_uv( point<f32>(0, 0), size<f32>(1, 1), 0, 0);
 
@@ -99,7 +99,7 @@ void setup_player(engine& game)
 	sprite& spr = game.ecs.add_component<sprite>(e);
 	spr.gen_subsprite(1, render_layers::sprites);
 
-	spr.get_subsprite(0).tex = game.renderer.get_texture("player");
+	spr.get_subsprite(0).tex = game.renderer().get_texture("player");
 
 	spr.set_pos(point<f32>(9, 9), size<f32>(0.75, 0.75), 0, 0);
 
@@ -168,7 +168,7 @@ void basic_sprite_setup(entity e, engine& g, render_layers layer, point<f32> ori
     spr.gen_subsprite(1, layer);
     spr.set_pos(origin, pos_size, 0, 0);
     spr.set_uv(uv_origin, uv_size, 0, 0);
-    spr.get_subsprite(0).tex = g.renderer.get_texture(texname.c_str());
+    spr.get_subsprite(0).tex = g.renderer().get_texture(texname.c_str());
 }
 
 void make_widget(entity e, engine& g, entity parent) {
