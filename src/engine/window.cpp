@@ -66,8 +66,8 @@ struct software_backend : public x11_window {
         if (image->data != frame_buffer) {
             attach_shm(frame);
         }
-        //_renderer_busy = true;
-        //XShmPutImage(dpy, win, gc, image, 0, 0, 0, 0, frame.size().w, frame.size().h, true);
+        _renderer_busy = true;
+        XShmPutImage(dpy, win, gc, image, 0, 0, 0, 0, frame.size().w, frame.size().h, true);
 	}
 };
 

@@ -460,7 +460,7 @@ void renderer_software::render_batch(texture current_tex, render_layers layer) {
         size_t write_stride = (fb.size().w) * 4;
 
         for (size_t y = 0; y < clipped_size.h; y++) {
-            //memcpy(fb.data() + write_index + (y * write_stride) , tex.data().data() + (y * 4 *  tex.size().w), bytes_per_line);
+            memcpy(fb.data() + write_index + (y * write_stride) , tex.data().data() + (y * 4 *  tex.size().w), bytes_per_line);
         }
     }
     quads_batched = 0;
