@@ -5,11 +5,12 @@
 #ifdef __linux__
 #include <X11/Xlib.h>
 #include <X11/Xatom.h>
-#include <X11/Xutil.h>
 #include <GL/glx.h>
 #include <sys/shm.h>
 #include <X11/extensions/XShm.h>
 #include <cstring>
+
+
 
 struct x11_window : public window_impl{
 	Display                 *dpy;
@@ -36,25 +37,37 @@ struct gl_backend : public x11_window {
 struct software_backend : public x11_window {
     XImage* image;
   	GC                    gc;
+    XShmSegmentInfo shminfo;
   	XGCValues             values;
 
-   std::vector<char> data;
     software_backend(size<u16> _resolution) : x11_window(_resolution) {
         size<u16> resolution = get_drawable_resolution();
         gc = XCreateGC(dpy, win, 0, &values);
-        data = std::vector<char>(resolution.w * resolution.h * 4, 255);
-        image = XCreateImage(dpy, vi->visual, vi->depth, ZPixmap, 0, data.data(), resolution.w, resolution.h, 8, 0);
+        image = XShmCreateImage(dpy, CopyFromParent, vi->depth, ZPixmap, nullptr, &shminfo, resolution.w, resolution.h);
+
     }
 
-    // I would REALLY like to find a more efficient way than double-copying the buffers.
+    void attach_shm(framebuffer& fb) {
+        size<u16> resolution = get_drawable_resolution();
+        image = XShmCreateImage(dpy, vi->visual, vi->depth, ZPixmap, 0, &shminfo, resolution.w, resolution.h);
+        shminfo.shmid = shmget(IPC_PRIVATE, static_cast<unsigned>(image->bytes_per_line * image->height), IPC_CREAT | 0666);
+        shminfo.readOnly = False;
+        shminfo.shmaddr = image->data = static_cast<char*>(shmat(shminfo.shmid, nullptr, 0));
+        if(XShmAttach(dpy, &shminfo) != True) {
+            fputs("Attaching shared memory failed", stderr);
+            exit(0);
+        }
+        fb = framebuffer(reinterpret_cast<u8*>(shminfo.shmaddr), resolution);
+    }
 
     void swap_buffers(renderer_base& r) {
         auto& frame = reinterpret_cast<renderer_software&>(r).get_framebuffer();
-        // X11 is a despicable protocol.
-        // This is the singular worst line of code I have ever written in my entire life, and nothing else comes close.
-        // I am BEGGING for any better solution that doesn't require an extra buffer copy.
-        image->data = reinterpret_cast<char*>(const_cast<u8*>(frame.data()));
-        XPutImage(dpy, win, gc, image, 0, 0, 0, 0, frame.size().w, frame.size().h);
+        char* frame_buffer = reinterpret_cast<char*>(frame.data());
+        if (image->data != frame_buffer) {
+            attach_shm(frame);
+        }
+        //_renderer_busy = true;
+        //XShmPutImage(dpy, win, gc, image, 0, 0, 0, 0, frame.size().w, frame.size().h, true);
 	}
 };
 
@@ -69,12 +82,13 @@ x11_window::x11_window(size<u16> resolution) {
 	if(dpy == NULL) {
 	    printf("\n\tcannot connect to X server\n\n");
 		exit(0);
-	}
+	}    if(XShmQueryExtension(dpy) != True) {
+        fputs("X11 shared memory unavailable", stderr);
+        exit(0);
+    }
 
     root = DefaultRootWindow(dpy);
-	Atom type = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE", False);
-    Atom value = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_SPLASH", False);
-	XChangeProperty(dpy, root, type, XA_ATOM, 32, PropModeReplace, reinterpret_cast<unsigned char*>(&value), 1);
+
 	vi = glXChooseVisual(dpy, 0, att);
 
     if(vi == NULL) {
@@ -152,6 +166,10 @@ bool x11_window::poll_events(event& e) {
 	if (XPending(dpy) == 0) return false;
  	XNextEvent(dpy, &xev);
 
+
+
+    const auto shm_completion_event = XShmGetEventBase(dpy) + ShmCompletion;
+
 	switch (xev.type) {
 	case Expose:
     	XGetWindowAttributes(dpy, win, &gwa);
@@ -183,7 +201,10 @@ bool x11_window::poll_events(event& e) {
 		e.set_type(event_flags::cursor_moved);
 		e.set_active(true);
 		break;
-
+	default:
+        if(xev.type == shm_completion_event) {
+            _renderer_busy = false;
+        }
 	}
 	return true;
 }
@@ -191,22 +212,22 @@ bool x11_window::poll_events(event& e) {
 
 
 #ifdef _WIN32
+
 #include <windows.h>
-#include "window.h"
 
 #pragma comment (lib, "opengl32.lib")
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
-struct x11_window {
+struct win32_window {
 	HWND hwnd;
 	HINSTANCE hInstance;
 	WNDCLASS wc      = {0};
 
-	x11_window(size<u16> resolution);
+	win32_window(size<u16> resolution);
 };
 
-x11_window::x11_window(size<u16> resolution) {
+win32_window::win32_window(size<u16> resolution) {
 	hInstance = GetModuleHandle(NULL);
 	WNDCLASS wc      = {0};
 	wc.lpfnWndProc   = WndProc;
@@ -279,7 +300,7 @@ void window_manager::swap_buffers() {
 
 
 window_manager::window_manager() {
-	context = new x11_window(settings.resolution);
+	context = new win32_window(settings.resolution);
 
 	//set_vsync(settings.flags.test(window_flags::vsync));
 }

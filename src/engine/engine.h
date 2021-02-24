@@ -47,10 +47,13 @@ public:
 
 
 class window_impl {
+protected:
+    bool _renderer_busy = false;
 public:
     virtual bool poll_events(event&) = 0;
     virtual void swap_buffers(renderer_base&) = 0;
     virtual size<u16> get_drawable_resolution() = 0;
+    bool renderer_busy() { return _renderer_busy; }
 };
 class window_manager  : no_copy, no_move {
 public:
@@ -63,6 +66,7 @@ public:
 	void set_resolution(size<u16>);
 
 	bool poll_events(event& e) { return context->poll_events( e); };
+	bool renderer_busy() { return context->renderer_busy(); }
 private:
 	window_impl* context;
 	bool fullscreen = false;

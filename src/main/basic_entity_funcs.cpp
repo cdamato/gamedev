@@ -101,7 +101,7 @@ void setup_player(engine& game)
 
 	spr.get_subsprite(0).tex = game.renderer().get_texture("player");
 
-	spr.set_pos(point<f32>(9, 9), size<f32>(0.75, 0.75), 0, 0);
+	spr.set_pos(point<f32>(9, 9), size<f32>(1, 1), 0, 0);
 
 	game.ecs.add_component<c_velocity>(e);
 	game.ecs.add_component<c_weapon_pool>(e);

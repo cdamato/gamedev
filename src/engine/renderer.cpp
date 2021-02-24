@@ -73,6 +73,7 @@ void renderer_base::load_textures() {
         load_pixel_data(data, "textures/" + list->get<std::string>(0));
         data.subsprites = size<u16>(list->get<int>(1), list->get<int>(2));
         data.z_index = list->get<int>(3);
+        data.scale_factor = list->get<int>(4);
         set_texture_data(tex, data);
     }
 }
@@ -345,7 +346,7 @@ void renderer_gl::process_texture_data(texture tex) {
     texture_data data = texture_datas[tex];
     unsigned data_type = data.is_greyscale ? 0x1903 : GL_RGBA;
     bind_texture(tex);
-    glTexImage2D(GL_TEXTURE_2D, 0, data_type, data.image_data.size().w, data.image_data.size().h, 0, data_type, GL_UNSIGNED_BYTE, data.image_data.data());
+    glTexImage2D(GL_TEXTURE_2D, 0, data_type, data.image_data.size().w, data.image_data.size().h, 0, data_type, GL_UNSIGNED_BYTE, data.image_data.data().data());
     glGenerateMipmap(GL_TEXTURE_2D);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -368,7 +369,8 @@ void renderer_gl::process_texture_data(texture tex) {
 
 
 void renderer_software::clear_screen() {
-    framebuffer = image(std::vector<u8>(resolution.w * resolution.h * 4, 0), resolution);
+    //printf("frame is %p, \n", reinterpret_cast<renderer_software*>(_renderer.get())->get_framebuffer().data());
+    memset(fb.data(), 0, fb.size().w * fb.size().h * 4);
 }
 
 texture renderer_software::add_texture(std::string name) {
@@ -378,14 +380,40 @@ texture renderer_software::add_texture(std::string name) {
     return tex;
 }
 
-renderer_software::renderer_software() {
-    clear_screen();
+renderer_software::renderer_software(size<u16> resolution_in) {
+    //resolution = resolution_in;
     load_textures();
     mapped_vertex_buffer = new vertex[NUM_QUADS  * VERTICES_PER_QUAD];
 }
+void renderer_software::process_texture_data(texture tex_id) {
+    auto& tex_data = texture_datas[tex_id];
+    image& tex = tex_data.image_data;
+    size<f32> upscale_ratio (1.0f / tex_data.scale_factor, 1.0f / tex_data.scale_factor);
+    size<u16> upscaled_size(tex.size().w / upscale_ratio.w, tex.size().h / upscale_ratio.h);
+    image upscaled_tex(std::vector<u8>(upscaled_size.w * upscaled_size.h * 4), upscaled_size);
+
+    size_t write_index = 0;
+    size_t read_index = 0;
+    point<f32> read_pos(0, 0);
+    for (size_t y = 0; y < upscaled_size.h; y++) {
+        for (size_t x = 0; x < upscaled_size.w; x++) {
+            read_index = int(read_pos.x) + int(read_pos.y) * tex.size().w ;
+            color c = tex.get(read_index);
+            std::swap(c.r, c.b);
+            upscaled_tex.write(write_index, c);
+
+
+            write_index++;
+            read_pos.x += upscale_ratio.w;
+        }
+        read_pos.y += upscale_ratio.h;
+        read_pos.x = 0;
+    }
+    std::swap(tex_data.image_data, upscaled_tex);
+}
 
 void renderer_software::set_viewport(size<u16> screen_size) {
-    resolution = screen_size;
+    //resolution = screen_size;
 }
 
 
@@ -393,7 +421,7 @@ void renderer_software::set_camera(point<f32> camera_in) {
     camera = camera_in;
 }
 
-vertex transpose_vertex(std::vector<f32> matrix, vertex vert) {
+vertex transpose_vertex(std::array<f32, 4> matrix, vertex vert) {
     point<f32> new_vertex;
     new_vertex.x = (matrix[0] * vert.pos.x) + (matrix[1] * vert.pos.y);
     new_vertex.y = (matrix[2] * vert.pos.x) + (matrix[3] * vert.pos.y);
@@ -401,67 +429,39 @@ vertex transpose_vertex(std::vector<f32> matrix, vertex vert) {
 }
 
 void renderer_software::render_batch(texture current_tex, render_layers layer) {
-    std::vector<f32> matrix;
+    std::array<f32, 4> matrix;
     switch (layer) {
         case render_layers::text:
         case render_layers::ui:
-            matrix = std::vector<f32> { 1, 0, 0, 1 };
+            matrix = std::array<f32, 4> { 1, 0, 0, 1 };
             break;
         case render_layers::sprites:
-            matrix = std::vector<f32> { 64, 0, 0, 64 };
+            matrix = std::array<f32, 4> { 64, 0, 0, 64 };
             break;
     }
 
     if (current_tex >= texture_datas.size()) throw "bruh";
-    image tex = texture_datas[current_tex].image_data;
+    image& tex = texture_datas[current_tex].image_data;
 
-    rect<f32> frame(point<f32>(0, 0), resolution.to<f32>());
+    rect<f32> frame(point<f32>(0, 0), fb.size().to<f32>());
     for (size_t i = 0; i < quads_batched * 4; i+= 4) {
         auto tl_vert = transpose_vertex(matrix, mapped_vertex_buffer[i]);
         auto br_vert = transpose_vertex(matrix, mapped_vertex_buffer[i + 2]);
 
-        size<f32> pos_bounds (br_vert.pos.x - tl_vert.pos.x, br_vert.pos.y - tl_vert.pos.y );
-        size<f32> uv_bounds (br_vert.uv.x - tl_vert.uv.x, br_vert.uv.y - tl_vert.uv.y );
-
-        rect<f32> sprite_rect(tl_vert.pos, pos_bounds);
+        rect<f32> sprite_rect(tl_vert.pos, br_vert.pos);
         if (!AABB_collision(frame, sprite_rect)) continue;
 
-        point<u16> texel_origin (tex.size().w * tl_vert.uv.x, tex.size().h * tl_vert.uv.y);
-        size<u16> texel_bounds (tex.size().w * uv_bounds.w, tex.size().h * uv_bounds.h);
+        tl_vert.pos = point<f32>(std::max(0.0f, tl_vert.pos.x), std::max(0.0f, tl_vert.pos.y));
+        br_vert.pos = point<f32>(std::min(f32(fb.size().w), br_vert.pos.x), std::min(f32(fb.size().h), br_vert.pos.y));
 
-        size<f32> texel_ratio (f32(texel_bounds.w) / pos_bounds.w , f32(texel_bounds.h) / pos_bounds.h);
-        point<f32> texel_pos = texel_origin.to<f32>();
-        size_t read_index = 0;
-        size_t write_index = tl_vert.pos.x + (tl_vert.pos.y * resolution.w);
+        size<u16> clipped_size(br_vert.pos.x - tl_vert.pos.x, br_vert.pos.y - tl_vert.pos.y);
+        size_t write_index = (tl_vert.pos.x  + (tl_vert.pos.y * fb.size().w)) * 4;
+        size_t bytes_per_line = clipped_size.w * 4;
+        size_t write_stride = (fb.size().w) * 4;
 
-        for (size_t y = 0; y < pos_bounds.h; y++) {
-            for (size_t x = 0; x < pos_bounds.w; x++) {
-                if (write_index >= resolution.w * resolution.h) break;
-                size_t texel_index = int(texel_pos.x) + int(texel_pos.y) * tex.size().w ;
-                color c = tex.get(texel_index);
-                u8 temp = c.r;
-                c.r = c.b;
-                c.b = temp;
-                // TODO - implement alpha blending
-                if (c.a == 255) {
-                    framebuffer.write(write_index, c);
-                }
-
-                write_index++;
-                texel_pos.x += texel_ratio.w;
-            }
-            write_index += resolution.w - (pos_bounds.w); // jump to the beginning of the next row
-            if (write_index >= resolution.w * resolution.h) break;
-            texel_pos.y += texel_ratio.h;
-            texel_pos.x = texel_origin.x;
+        for (size_t y = 0; y < clipped_size.h; y++) {
+            //memcpy(fb.data() + write_index + (y * write_stride) , tex.data().data() + (y * 4 *  tex.size().w), bytes_per_line);
         }
     }
-
     quads_batched = 0;
-
-    //Encode the image
-    //unsigned error = lodepng::encode("render.png", framebuffer.data, resolution.w, resolution.h);
-
-    //if there's an error, display it
-    //if(error) std::cout << "encoder error " << error << ": "<< lodepng_error_text(error) << std::endl;
 }

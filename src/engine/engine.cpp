@@ -40,7 +40,7 @@ void engine::run_tick() {
 engine::engine()  : settings(), window(settings){
 
     if (settings.flags.test(window_flags::use_software_render)) {
-        _renderer = std::unique_ptr<renderer_base>(new renderer_software);
+        _renderer = std::unique_ptr<renderer_base>(new renderer_software(settings.resolution));
     } else {
         _renderer = std::unique_ptr<renderer_base>(new renderer_gl);
     }
@@ -49,6 +49,7 @@ engine::engine()  : settings(), window(settings){
 		create_entity(egen_bullet, s, d, v, o, t, a);
 	};
 
+    window.swap_buffers(renderer());
     ecs._map_id = create_entity([&](entity, engine&){});
 	ecs._player_id = create_entity([&](entity, engine&){});
     ecs.add_component<c_player>(ecs._player_id);
@@ -83,6 +84,7 @@ void engine::destroy_entity(entity e) {
 }
 
 void engine::render() {
+    renderer().clear_screen();
     renderer().render_layer(sprites);
 	window.swap_buffers(renderer());
 }

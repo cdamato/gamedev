@@ -55,16 +55,15 @@ class renderer_software : public renderer_base {
 public:
     void clear_screen();
     texture add_texture(std::string name) ;
-    renderer_software();
+    renderer_software(size<u16>);
     void set_viewport(size<u16>);
     void set_camera(point<f32>);
-    image& get_framebuffer() { return framebuffer;}
+    framebuffer& get_framebuffer() { return fb;}
 private:
-    void process_texture_data(texture) {}
+    void process_texture_data(texture);
 
-    image framebuffer;
+    framebuffer fb;
 
-    size<u16> resolution;
     point<f32> camera;
 
     size_t texture_counter = 0;

@@ -66,7 +66,7 @@ public:
 	constexpr rect(point<T> p, size_type s) noexcept : size(s), origin(p)  {};
 	constexpr rect(point<T> tl, point<T> br) noexcept {
 		origin = tl;
-		origin = point<T>(br.x - tl.x, br.y - tl.y);
+		size = size_type(br.x - tl.x, br.y - tl.y);
 	};
 
 	constexpr point<T> top_right() { return point<T>(origin.x + size.w, origin.y); }

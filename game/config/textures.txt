@@ -1,9 +1,9 @@
 # left hand side is the sprite's internal name.
-# List entry meanings, in order: filename, # of horizontal divisions, # of vertical divisions, and the intended z-index of this texture.
+# Parameters: filename, horizontal divisions, vertical divisions, z-index, upscale factor (for software renderer)
 
-bullet = {"bullet.png", 1, 1, 2}
-button = {"button.png", 1, 1, 2}
-highlight = {"highlight.png", 2, 1, 1}
-items = {"items.png", 2, 1, 2}
-player = {"player.png", 1, 1, 2}
-tilemap = {"tilemap.png", 5, 3, 1}
+bullet = {"bullet.png", 1, 1, 2, 1}
+button = {"button.png", 1, 1, 2, 8}
+highlight = {"highlight.png", 2, 1, 1, 2}
+items = {"items.png", 2, 1, 2, 2}
+player = {"player.png", 1, 1, 2, 4}
+tilemap = {"tilemap.png", 5, 3, 1, 2}

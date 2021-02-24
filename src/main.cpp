@@ -30,6 +30,7 @@ void init_dungeon(engine& e) {
 
 
 void init_npc_hub(engine& g) {
+    printf("clicked\n");
     config_parser p("config/main_hub.txt");
     auto d = p.parse();
 
@@ -82,7 +83,7 @@ void init_npc_hub(engine& g) {
     size<f32> dp_size(dpsize->get<int>(0), dpsize->get<int>(1));
 
     g.create_entity([&](entity e, engine& g) {
-        basic_sprite_setup(e, g, render_layers::sprites, dp_origin, dp_size, point<f32>(0, 0), size<f32>(1, 1), "button");
+        //basic_sprite_setup(e, g, render_layers::sprites, dp_origin, dp_size, point<f32>(0, 0), size<f32>(1, 1), "button");
 
         c_proximity& prox = g.ecs.add_component<c_proximity>(e);
         prox.shape = c_proximity::shape::rectangle;
@@ -138,7 +139,6 @@ int main() {
 		lag += t.elapsed<timer::microseconds>();
 		t.start();
 
-		w.renderer().clear_screen();
 		loop = w.process_events();
 
 		if ( fpscounter.elapsed<timer::seconds>().count() >= 1.0 ) {
@@ -153,8 +153,11 @@ int main() {
 		}
 
 
-		numframes++;
-		w.render();
+        if (!w.window.renderer_busy()) {
+            numframes++;
+            w.render();
+
+        }
 	}
 	return 0;
 }
