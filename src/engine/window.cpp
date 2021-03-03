@@ -20,7 +20,7 @@ struct x11_window : public window_impl{
 
 	x11_window(size<u16> resolution);
     size<u16> get_drawable_resolution() ;
-	bool poll_events(event& e);
+	bool poll_events();
 };
 
 struct gl_backend : public x11_window {
@@ -66,7 +66,7 @@ struct software_backend : public x11_window {
         if (image->data != frame_buffer) {
             attach_shm(frame);
         }
-        _renderer_busy = true;
+        renderer_busy = true;
         XShmPutImage(dpy, win, gc, image, 0, 0, 0, 0, frame.size().w, frame.size().h, true);
 	}
 };
@@ -95,9 +95,6 @@ x11_window::x11_window(size<u16> resolution) {
         printf("\n\tno appropriate visual found\n\n");
 	    exit(0);
     }
-    else {
-	 	printf("\n\tvisual %p selected\n", (void *)vi->visualid); /* %p creates hexadecimal output like in glxinfo */
-    }
 
     cmap = XCreateColormap(dpy, root, vi->visual, AllocNone);
 	swa.colormap = cmap;
@@ -124,88 +121,53 @@ size<u16> x11_window::get_drawable_resolution() {
 
 }
 
-void window_manager::set_resolution(size<u16> resolution) {
-   // settings.resolution = context->get_drawable_resolution();
-}
 
-
-void window_manager::set_vsync(bool state) {
-	//SDL_GL_SetSwapInterval(1);
-}
-
-void window_manager::set_fullscreen(bool state) {
-	fullscreen = state;
-	//auto flag = state ? SDL_WINDOW_FULLSCREEN : 0;
-//	SDL_SetWindowFullscreen(mainWindow, flag);
-}
-
-
-window_manager::~window_manager() {
-	//SDL_GL_DeleteContext(mainContext);
-	//SDL_DestroyWindow(mainWindow);
-//	SDL_Quit();
-}
-
-
-window_manager::window_manager(settings_manager& settings) {
-    if (settings.flags.test(window_flags::use_software_render)) {
-	    context = new software_backend(settings.resolution);
-    } else {
-	    context = new gl_backend(settings.resolution);
-    }
-	set_resolution(settings.resolution);
-	settings.resolution = context->get_drawable_resolution();
-	set_vsync(settings.flags.test(window_flags::vsync));
-}
-
-bool x11_window::poll_events(event& e) {
-	e = event();
-	e.set_active(false);
+bool x11_window::poll_events() {
 	XEvent xev;
-
-	if (XPending(dpy) == 0) return false;
- 	XNextEvent(dpy, &xev);
-
-
-
+	event e;
     const auto shm_completion_event = XShmGetEventBase(dpy) + ShmCompletion;
+    while(XPending(dpy)) {
+    	XNextEvent(dpy, &xev);
+    	e = event();
+        switch (xev.type) {
+            case Expose:
+                XGetWindowAttributes(dpy, win, &gwa);
+                glViewport(0, 0, gwa.width, gwa.height);
+                break;
 
-	switch (xev.type) {
-	case Expose:
-    	XGetWindowAttributes(dpy, win, &gwa);
-        glViewport(0, 0, gwa.width, gwa.height);
-        break;
-
-	case KeyPress:
-		e.set_active(true);
-		[[fallthrough]];
-	case KeyRelease: {
-		e.ID = XLookupKeysym(&xev.xkey, 0);
-		e.set_type(event_flags::key_press);
-		break;
-	}
-	// Apparently, the X server sends window destroy messages this way?
-	// I don't get it, why not have a dedicated window-destroy event?
-	case ClientMessage:
-		e.set_type(event_flags::terminate);
-		break;
-	case ButtonPress:
-		e.set_active(true);
-		[[fallthrough]];
-	case ButtonRelease:
-		e.set_type(event_flags::button_press);
-		e.pos =  point<f32>(xev.xbutton.x, xev.xbutton.y);;
-		break;
-	case MotionNotify:
-		e.pos =  point<f32>(xev.xbutton.x, xev.xbutton.y);;
-		e.set_type(event_flags::cursor_moved);
-		e.set_active(true);
-		break;
-	default:
-        if(xev.type == shm_completion_event) {
-            _renderer_busy = false;
+            case KeyPress:
+                e.set_active(true);
+                [[fallthrough]];
+            case KeyRelease: {
+                e.ID = XLookupKeysym(&xev.xkey, 0);
+                e.set_type(event_flags::key_press);
+                break;
+            }
+            // Apparently, the X server sends window destroy messages this way?
+            // I don't get it, why not have a dedicated window-destroy event?
+            case ClientMessage:
+                return false;
+            case ButtonPress:
+                e.set_active(true);
+                [[fallthrough]];
+            case ButtonRelease:
+                e.set_type(event_flags::button_press);
+                e.pos =  point<f32>(xev.xbutton.x, xev.xbutton.y);;
+                break;
+            case MotionNotify:
+                e.pos =  point<f32>(xev.xbutton.x, xev.xbutton.y);;
+                e.set_type(event_flags::cursor_moved);
+                e.set_active(true);
+                break;
+            default:
+                if(xev.type == shm_completion_event) {
+                    renderer_busy = false;
+                }
         }
-	}
+        event_callback(e);
+    }
+
+
 	return true;
 }
 #endif //__linux__
@@ -213,98 +175,227 @@ bool x11_window::poll_events(event& e) {
 
 #ifdef _WIN32
 
+#define UNICODE
+#define _UNICODE
 #include <windows.h>
-
-#pragma comment (lib, "opengl32.lib")
+#include <windowsx.h>
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
-struct win32_window {
+struct win32_window : public window_impl{
 	HWND hwnd;
 	HINSTANCE hInstance;
-	WNDCLASS wc      = {0};
-
+	WNDCLASS wc = {0};
+	HGLRC gl_context = 0;
+    size<u16> resolution;
 	win32_window(size<u16> resolution);
+    size<u16> get_drawable_resolution() ;
+	bool poll_events();
 };
 
+LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
 win32_window::win32_window(size<u16> resolution) {
-	hInstance = GetModuleHandle(NULL);
-	WNDCLASS wc      = {0};
-	wc.lpfnWndProc   = WndProc;
-	wc.hInstance     = hInstance;
-	wc.lpszClassName = L"oglversionchecksample";
-	wc.style = CS_OWNDC;
-	if( !RegisterClass(&wc) )
-		throw "error";
-	hwnd = CreateWindowEx(0, wc.lpszClassName,L"openglversioncheck",WS_OVERLAPPEDWINDOW|WS_VISIBLE,0,0,640,480,0,0,hInstance,0);
+	hInstance = (HINSTANCE)GetModuleHandle(NULL);
+
+    WNDCLASSEX wcx;
+
+    wchar_t classname[256] = L"MainWClass";
+    wcx.cbSize = sizeof(wcx);          // size of structure
+    wcx.style = 0;                  // redraw if size changes
+    wcx.lpfnWndProc = WndProc;     // points to window procedure
+    wcx.cbClsExtra = 0;                // no extra class memory
+    wcx.cbWndExtra = 0;                // no extra window memory
+    wcx.hInstance = hInstance;   // handle to instance
+    wcx.hIcon = NULL; // predefined app. icon
+    wcx.hCursor = LoadCursorW(nullptr, IDC_ARROW);                    // white background brush
+    wcx.hbrBackground = NULL;
+    wcx.lpszMenuName = NULL;    // name of menu resource
+    wcx.lpszClassName = classname;
+    wcx.hIconSm = NULL;
+
+    if (RegisterClassEx(&wcx) == 0)
+        printf("Failed to register WC\n");
+
+    hwnd = CreateWindowEx(0, wcx.lpszClassName, L"openglversioncheck", WS_OVERLAPPEDWINDOW | WS_VISIBLE, 0, 0, 1920, 1080, 0, 0, hInstance, this);
+    ShowWindow(hwnd, 1);
+
+    resolution = get_drawable_resolution();
 }
 
 
-bool window_manager::poll_events(event& e) {
-	return false;
+
+
+bool win32_window::poll_events() {
+    MSG msg = { };
+    while (PeekMessage(&msg, NULL, 0, 0, 0)) {
+        GetMessage(&msg, NULL, 0, 0);
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+    return true;
 }
 
+struct gl_backend : public win32_window {
+    gl_backend(size<u16> resolution) : win32_window(resolution) {}
+    void swap_buffers(renderer_base& r) {
+        SwapBuffers(GetDC(hwnd));
+	}
+};
 
-LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+
+size<u16> win32_window::get_drawable_resolution() {
+    RECT rect;
+    GetClientRect(hwnd, &rect);
+    resolution = size<u16>(rect.right - rect.left, rect.bottom - rect.top);
+	return resolution;
+}
+
+struct software_backend : public win32_window {
+    BITMAPINFO bmih;
+    HDC hdcMem;
+
+    u8* fb_ptr;
+    HBITMAP bitmap;
+
+    software_backend(size<u16> resolution_in) : win32_window(resolution_in) {
+        bmih.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+        bmih.bmiHeader.biWidth = resolution.w;
+        bmih.bmiHeader.biHeight = -resolution.h;
+        bmih.bmiHeader.biPlanes = 1;
+        bmih.bmiHeader.biCompression = BI_BITFIELDS;
+        bmih.bmiHeader.biBitCount = 32;
+        bmih.bmiHeader.biSizeImage = resolution.w * resolution.h * 4;
+        bmih.bmiColors[0].rgbRed =   0xff;
+        bmih.bmiColors[1].rgbGreen = 0xFF;
+        bmih.bmiColors[2].rgbBlue =  0xff;
+
+        bitmap = CreateDIBSection(GetDC(hwnd), &bmih, DIB_RGB_COLORS, reinterpret_cast<void**>(&fb_ptr), NULL, NULL);
+    }
+    void attach_buffer(framebuffer& fb) {
+        fb = framebuffer(fb_ptr, resolution);
+    }
+    void swap_buffers(renderer_base& r) {
+        auto& fb = reinterpret_cast<renderer_software&>(r).get_framebuffer();
+        if (fb_ptr != fb.data()) {
+            attach_buffer(fb);
+        }
+        InvalidateRect (hwnd, NULL, NULL);
+	}
+};
+
+
+
+
+
+
+
+
+
+
+
+#include <common/png.h>
+LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-	switch(message)
-	{
-	case WM_CREATE:
-		{
-		PIXELFORMATDESCRIPTOR pfd =
-		{
-			sizeof(PIXELFORMATDESCRIPTOR),
-			1,
-			PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER,    //Flags
-			PFD_TYPE_RGBA,        // The kind of framebuffer. RGBA or palette.
-			32,                   // Colordepth of the framebuffer.
-			0, 0, 0, 0, 0, 0,
-			0,
-			0,
-			0,
-			0, 0, 0, 0,
-			24,                   // Number of bits for the depthbuffer
-			8,                    // Number of bits for the stencilbuffer
-			0,                    // Number of Aux buffers in the framebuffer.
-			PFD_MAIN_PLANE,
-			0,
-			0, 0, 0
-		};
+	event e;
 
-		HDC ourWindowHandleToDeviceContext = GetDC(hWnd);
+	win32_window *wndptr = (win32_window*) GetWindowLongPtr(hwnd, GWLP_USERDATA);
+	switch(message)	{
+	    case WM_CREATE: {
+            SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR) ((CREATESTRUCT*)lParam)->lpCreateParams);
+            SetWindowPos(hwnd, 0, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER);
 
-		int  letWindowsChooseThisPixelFormat;
-		letWindowsChooseThisPixelFormat = ChoosePixelFormat(ourWindowHandleToDeviceContext, &pfd);
-		SetPixelFormat(ourWindowHandleToDeviceContext,letWindowsChooseThisPixelFormat, &pfd);
+            // For the sake of simplicity, perform these tasks for both renderers.
+            // Windows guarantees OpenGL 1.1, so this should always succeed.
+		    PIXELFORMATDESCRIPTOR pfd =	{ sizeof(PIXELFORMATDESCRIPTOR), 1, PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER, PFD_TYPE_RGBA,
+    			32, 0, 0, 0, 0, 0, 0, 0, 0, 0,0, 0, 0, 0,	24, 8,	0,	PFD_MAIN_PLANE,	0,	0, 0, 0	};
+    		HDC hdc = GetDC(hwnd);
+		    int pf = ChoosePixelFormat(hdc, &pfd);
+		    SetPixelFormat(hdc,pf, &pfd);
+    		HGLRC gl_context = wglCreateContext(hdc);
+    		wglMakeCurrent (hdc, gl_context);
+    		return true;
+        }
+        case WM_LBUTTONDOWN:
+            e.set_active(true);
+            [[fallthrough]];
+	    case WM_LBUTTONUP:
+	        e.set_type(event_flags::button_press);
+	        e.pos = point<f32>(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+	        break;
 
-		HGLRC ourOpenGLRenderingContext = wglCreateContext(ourWindowHandleToDeviceContext);
-		wglMakeCurrent (ourWindowHandleToDeviceContext, ourOpenGLRenderingContext);
+        case WM_PAINT: {
+
+            PAINTSTRUCT ps;
+
+            size<u16> resolution = wndptr->resolution;
+            auto* window = reinterpret_cast<software_backend*>(wndptr);
+
+            HDC hdc = BeginPaint(hwnd, &ps);
 
 
-		//wglMakeCurrent(ourWindowHandleToDeviceContext, NULL); Unnecessary; wglDeleteContext will make the context not current
+            HDC hdcMem = CreateCompatibleDC(hdc);
+            HANDLE hOld = SelectObject(hdcMem, window->bitmap);
+
+            BitBlt(hdc, 0, 0, resolution.w, resolution.h, hdcMem, 0, 0, SRCCOPY);
+
+            SelectObject(hdcMem, hOld);
+            EndPaint(hwnd, &ps);
+            return 0;
+        }
+
+		//wglMakeCurrent(ourWindowHandleToDeviceContext, NULL);
 	//	wglDeleteContext(ourOpenGLRenderingContext);
 		//PostQuitMessage(0);
-		}
-		break;
-	default:
-		return DefWindowProc(hWnd, message, wParam, lParam);
+
+	    case WM_SIZE: {
+	        // Test if valid window initialization has happened
+	        if(wndptr->resize_callback) {
+	            size<u16> new_size(LOWORD(lParam), HIWORD(lParam));
+                wndptr->resize_callback(new_size);
+            }
+            return 0;
+        }
+	    default:
+		    return DefWindowProc(hwnd, message, wParam, lParam);
 	}
+
+
+	wndptr->event_callback(e);
+
 	return 0;
-
-}
-
-
-void window_manager::swap_buffers() {
-	SwapBuffers(GetDC(context->hwnd));
-}
-
-
-window_manager::window_manager() {
-	context = new win32_window(settings.resolution);
-
-	//set_vsync(settings.flags.test(window_flags::vsync));
 }
 #endif //_WIN32
 
 
 
+
+
+
+
+
+void window_manager::set_resolution(size<u16> resolution) {
+}
+
+
+void window_manager::set_vsync(bool state) {
+}
+
+void window_manager::set_fullscreen(bool state) {
+    fullscreen = state;
+}
+
+
+window_manager::~window_manager() {
+}
+
+
+window_manager::window_manager(settings_manager& settings) {
+    if (settings.flags.test(window_flags::use_software_render)) {
+        context = new software_backend(settings.resolution);
+    } else {
+        context = new gl_backend(settings.resolution);
+    }
+    set_resolution(settings.resolution);
+    settings.resolution = context->get_drawable_resolution();
+    set_vsync(settings.flags.test(window_flags::vsync));
+}

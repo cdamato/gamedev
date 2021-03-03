@@ -10,7 +10,6 @@ enum event_flags {
 	cursor_moved,
 	key_press,
 	hover,
-	terminate,
 	null,
 
 	active_bit,

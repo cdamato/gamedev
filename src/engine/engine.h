@@ -20,11 +20,6 @@ public:
 
 	timer hover_timer;
 	bool hover_active = false;
-
-	bool handle_button(event& event, engine&);
-    bool handle_keypress(event& event, engine&);
-    bool handle_cursor(event& event, engine&);
-    bool handle_hover(event& event, engine&);
 };
 
 
@@ -46,15 +41,16 @@ public:
 };
 
 
-class window_impl {
-protected:
-    bool _renderer_busy = false;
-public:
-    virtual bool poll_events(event&) = 0;
+struct window_impl {
+    std::function<void(event&)> event_callback;
+    std::function<void(size<u16>)> resize_callback;
+    bool renderer_busy = false;
+
+    virtual bool poll_events() = 0;
     virtual void swap_buffers(renderer_base&) = 0;
     virtual size<u16> get_drawable_resolution() = 0;
-    bool renderer_busy() { return _renderer_busy; }
 };
+
 class window_manager  : no_copy, no_move {
 public:
 	window_manager(settings_manager& settings);
@@ -65,8 +61,11 @@ public:
 	void set_vsync(bool);
 	void set_resolution(size<u16>);
 
-	bool poll_events(event& e) { return context->poll_events( e); };
-	bool renderer_busy() { return context->renderer_busy(); }
+	bool poll_events() { return context->poll_events(); };
+	bool renderer_busy() { return context->renderer_busy; }
+	void set_event_callback(std::function<void(event&)> callback) { context->event_callback = callback; }
+    void set_resize_callback(std::function<void(size<u16>)> callback) { context->resize_callback = callback; }
+
 private:
 	window_impl* context;
 	bool fullscreen = false;

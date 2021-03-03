@@ -41,7 +41,7 @@ void init_npc_hub(engine& g) {
     std::vector<u8> tile_data(tiledata_string.size());
 
     for (size_t i = 0; i < tile_data.size(); i++) {
-    	tile_data[i] = tiledata_string[i] - 48;
+        tile_data[i] = tiledata_string[i] - 48;
     }
 
     setup_player(g);
@@ -104,53 +104,53 @@ void init_npc_hub(engine& g) {
 
 
 void init_main_menu(engine& eng) {
-	eng.create_entity([&](entity e, engine& g) {
+    eng.create_entity([&](entity e, engine& g) {
         basic_sprite_setup(e, g, render_layers::ui, point<f32>(100, 500), size<f32>(64, 64), point<f32>(0, 0), size<f32>(1, 1), "button");
-		make_widget(e, g, eng.ui.root);
+        make_widget(e, g, eng.ui.root);
 
-		c_mouseevent& on_click = g.ecs.add_component<c_mouseevent>(e);
-		on_click.add_event([&](entity e, const event& ev, engine& g_in) {
-		    if (ev.active_state()) return true;
-			g.destroy_entity(e);
-			init_npc_hub(g_in);
-			return true;
-		}, g);
-	});
+        c_mouseevent& on_click = g.ecs.add_component<c_mouseevent>(e);
+        on_click.add_event([&](entity e, const event& ev, engine& g_in) {
+            if (ev.active_state()) return true;
+            g.destroy_entity(e);
+            init_npc_hub(g_in);
+            return true;
+        }, g);
+    });
 }
 
 
 
 int main() {
-	printf("Exec begin\n");
- 	engine w;
+    printf("Exec begin\n");
+    engine w;
 
-	bool loop = true;
-	timer t;
-	t.start();
- 	timer::microseconds lag(0);
+    bool loop = true;
+    timer t;
+    t.start();
+    timer::microseconds lag(0);
 
 
-	timer fpscounter;
-	int numframes = 0;
+    timer fpscounter;
+    int numframes = 0;
 
-	init_main_menu(w);
-	while (loop)
-	{
-		lag += t.elapsed<timer::microseconds>();
-		t.start();
+    init_main_menu(w);
+    while (loop)
+    {
+        lag += t.elapsed<timer::microseconds>();
+        t.start();
 
-		loop = w.process_events();
+        loop = w.process_events();
 
-		if ( fpscounter.elapsed<timer::seconds>().count() >= 1.0 ) {
-		    printf("%f ms/frame\n", 1000.0f / double(numframes));
-		    numframes = 0;
-		    fpscounter.start();
-		}
+        if ( fpscounter.elapsed<timer::seconds>().count() >= 1.0 ) {
+            printf("%f ms/frame\n", 1000.0f / double(numframes));
+            numframes = 0;
+            fpscounter.start();
+        }
 
-		while (lag >= timer::microseconds(MS_PER_FRAME)) {
-			w.run_tick();
-			lag -= timer::microseconds(MS_PER_FRAME);
-		}
+        while (lag >= timer::microseconds(MS_PER_FRAME)) {
+            w.run_tick();
+            lag -= timer::microseconds(MS_PER_FRAME);
+        }
 
 
         if (!w.window.renderer_busy()) {
@@ -158,6 +158,6 @@ int main() {
             w.render();
 
         }
-	}
-	return 0;
+    }
+    return 0;
 }

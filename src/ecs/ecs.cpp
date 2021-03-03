@@ -455,16 +455,16 @@ void s_shooting::run(pool<sprite>& sprites, pool<c_weapon_pool> weapons, c_playe
 /******************************/
 
 struct s_text::impl {
-    FT_Library library;
-    FT_Face face;
+   // FT_Library library;
+    //FT_Face face;
 };
 
 s_text::s_text() {
     data = new impl;
-    FT_Init_FreeType( &data->library );
-    FT_New_Face( data->library, "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 0, &data->face);
+   // FT_Init_FreeType( &data->library );
+  //  FT_New_Face( data->library, "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 0, &data->face);
 }
-
+/*
 f32 calc_fontsize(size<f32> box) {
     u8 dpi = 96;
     f32 lineheight_inches = ((box.h) / static_cast<f32>(dpi));
@@ -509,9 +509,9 @@ void render_line(FT_Face face, std::string text, std::vector<u8>& bmp, point<u16
         pen.x += face->glyph->advance.x >> 6;
     }
 }
+*/
 
-
-void s_text::run(pool<c_text>& texts, pool<sprite>& sprites) {
+void s_text::run(pool<c_text>& texts, pool<sprite>& sprites) {/*
     if (texts.size() != last_atlassize) reconstruct_atlas = true;
     if (reconstruct_atlas == false) return;
 
@@ -544,5 +544,5 @@ void s_text::run(pool<c_text>& texts, pool<sprite>& sprites) {
         sprites.get(text.ref).set_uv(pos, new_dim, 0, text.subsprite_index);
         sprites.get(text.ref).get_subsprite(text.subsprite_index).tex = atlas;
         pen.y += dim.size.h ;
-    }
+    }*/
 }
