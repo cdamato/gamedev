@@ -22,7 +22,6 @@ public:
 	bool hover_active = false;
 };
 
-
 enum window_flags {
 	fullscreen,
 	use_software_render,
@@ -40,35 +39,34 @@ public:
 	friend class engine;
 };
 
-
 struct window_impl {
     std::function<void(event&)> event_callback;
     std::function<void(size<u16>)> resize_callback;
     bool renderer_busy = false;
+    bool fullscreen = false;
+    size<u16> resolution;
 
     virtual bool poll_events() = 0;
     virtual void swap_buffers(renderer_base&) = 0;
     virtual size<u16> get_drawable_resolution() = 0;
+    virtual ~window_impl() {}
 };
 
-class window_manager  : no_copy, no_move {
+class window_manager : no_copy, no_move {
 public:
 	window_manager(settings_manager& settings);
-	~window_manager();
 
-	void swap_buffers(renderer_base& r) { context->swap_buffers(r); };
+    bool poll_events() { return window_context.get()->poll_events(); };
+    bool renderer_busy() { return window_context.get()->renderer_busy; }
+    void swap_buffers(renderer_base& r) { window_context.get()->swap_buffers(r); };
+
 	void set_fullscreen(bool);
 	void set_vsync(bool);
 	void set_resolution(size<u16>);
-
-	bool poll_events() { return context->poll_events(); };
-	bool renderer_busy() { return context->renderer_busy; }
-	void set_event_callback(std::function<void(event&)> callback) { context->event_callback = callback; }
-    void set_resize_callback(std::function<void(size<u16>)> callback) { context->resize_callback = callback; }
-
+    void set_event_callback(std::function<void(event&)> callback) { window_context.get()->event_callback = callback; }
+    void set_resize_callback(std::function<void(size<u16>)> callback) { window_context.get()->resize_callback = callback; }
 private:
-	window_impl* context;
-	bool fullscreen = false;
+    std::unique_ptr<window_impl> window_context;
 };
 
 typedef void (*logic_func)(engine&);
@@ -88,17 +86,12 @@ public:
 	ecs_engine ecs;
 	ui_manager ui;
     logic_manager logic;
-	//scene_manager?
-	std::vector<entity> scene;
-
 	renderer_base& renderer() { return *_renderer.get(); }
 
 	engine();
-	void set_resolution(size<u16>);
 	bool process_events();
 	void render();
 	void run_tick();
-	bool accept_event(event&);
 
     std::multiset<subsprite> sprites;
 

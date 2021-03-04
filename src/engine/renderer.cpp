@@ -1,6 +1,8 @@
 #include <common/png.h>
 #include <common/parser.h>
 #include <GL/glew.h>
+#include <assert.h>
+#include <immintrin.h>
 #include "renderer.h"
 
 static constexpr unsigned VERTICES_PER_QUAD = 4;
@@ -40,9 +42,9 @@ void renderer_base::render_layer(std::multiset<subsprite> sprites) {
 }
 
 void renderer_base::set_texture_data(texture tex, texture_data data) {
-    if (texture_datas.size() <= tex)
-        texture_datas.resize(tex + 1);
-    texture_datas[tex] = data;
+    if (textures.size() <= tex)
+        textures.resize(tex + 1);
+    textures[tex] = data;
     process_texture_data(tex);
 }
 
@@ -227,7 +229,7 @@ void renderer_gl::render_batch(texture current_tex, render_layers layer) {
     }
     bind_texture(current_tex);
     shader& shader = data->get_shader(layer);
-    shader.update_uniform("z_index", texture_datas[current_tex].z_index);
+    shader.update_uniform("z_index", textures[current_tex].z_index);
 
     mapped_vertex_buffer = unmap_buffer();
     glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(quads_batched * 6),
@@ -343,7 +345,7 @@ void renderer_gl::clear_screen()
 }
 
 void renderer_gl::process_texture_data(texture tex) {
-    texture_data data = texture_datas[tex];
+    texture_data data = textures[tex];
     unsigned data_type = data.is_greyscale ? 0x1903 : GL_RGBA;
     bind_texture(tex);
     glTexImage2D(GL_TEXTURE_2D, 0, data_type, data.image_data.size().w, data.image_data.size().h, 0, data_type, GL_UNSIGNED_BYTE, data.image_data.data().data());
@@ -370,7 +372,7 @@ void renderer_gl::process_texture_data(texture tex) {
 
 void renderer_software::clear_screen() {
     //printf("frame is %p, \n", reinterpret_cast<renderer_software*>(_renderer.get())->get_framebuffer().data());
-    memset(fb.data(), 0, fb.size().w * fb.size().h * 4);
+    //memset(fb.data(), 255, fb.size().w * fb.size().h * 4);
 }
 
 texture renderer_software::add_texture(std::string name) {
@@ -386,7 +388,7 @@ renderer_software::renderer_software(size<u16> resolution_in) {
     mapped_vertex_buffer = new vertex[NUM_QUADS  * VERTICES_PER_QUAD];
 }
 void renderer_software::process_texture_data(texture tex_id) {
-    auto& tex_data = texture_datas[tex_id];
+    auto& tex_data = textures[tex_id];
     image& tex = tex_data.image_data;
     size<f32> upscale_ratio (1.0f / tex_data.scale_factor, 1.0f / tex_data.scale_factor);
     size<u16> upscaled_size(tex.size().w / upscale_ratio.w, tex.size().h / upscale_ratio.h);
@@ -428,6 +430,27 @@ vertex transpose_vertex(std::array<f32, 4> matrix, vertex vert) {
     return vertex {new_vertex, vert.uv};
 }
 
+
+
+// Utilizes SSE intrinsics to achieve non-temporal writes. to remove a bottleneck created by memcpy.
+void alt_memcpy(void* data, void* src, std::size_t bytes)
+{
+    assert(bytes % 64 == 0);
+    auto vec_pointer = static_cast<float*>(data);
+    auto src_pointer = static_cast<__m128*>(src);
+    const auto zero = _mm_setzero_ps();
+
+    // One float is equivalent to 1 pixel byte - one SSE transfer carries 4 pixels.
+    // One loop iteration will carry 16 pixels, which works well for most cases.
+    for(const auto vec_end = vec_pointer + (bytes / sizeof(float)); vec_pointer != vec_end; vec_pointer += 16, src_pointer += 4) {
+        _mm_stream_ps(&vec_pointer[0], src_pointer[0]);
+        _mm_stream_ps(&vec_pointer[4], src_pointer[1]);
+        _mm_stream_ps(&vec_pointer[8], src_pointer[2]);
+        _mm_stream_ps(&vec_pointer[12], src_pointer[3]);
+    }
+}
+
+
 void renderer_software::render_batch(texture current_tex, render_layers layer) {
     std::array<f32, 4> matrix;
     switch (layer) {
@@ -440,8 +463,8 @@ void renderer_software::render_batch(texture current_tex, render_layers layer) {
             break;
     }
 
-    if (current_tex >= texture_datas.size()) throw "bruh";
-    image& tex = texture_datas[current_tex].image_data;
+    if (current_tex >= textures.size()) throw "bruh";
+    image& tex = textures[current_tex].image_data;
 
     rect<f32> frame(point<f32>(0, 0), fb.size().to<f32>());
     for (size_t i = 0; i < quads_batched * 4; i+= 4) {
@@ -460,7 +483,7 @@ void renderer_software::render_batch(texture current_tex, render_layers layer) {
         size_t write_stride = (fb.size().w) * 4;
 
         for (size_t y = 0; y < clipped_size.h; y++) {
-            memcpy(fb.data() + write_index + (y * write_stride) , tex.data().data() + (y * 4 *  tex.size().w), bytes_per_line);
+            alt_memcpy(fb.data() + write_index + (y * write_stride) , tex.data().data() + (y * 4 *  tex.size().w), bytes_per_line);
         }
     }
     quads_batched = 0;

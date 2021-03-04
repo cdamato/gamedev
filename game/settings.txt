@@ -2,4 +2,4 @@ window_size = {1920, 1080}
 # 0 for windowed, 1 for borderless windowed, 2 for true fullscreen
 fullscreen = 0
 vsync = true
-use_software_renderer = true
+use_software_renderer = false
