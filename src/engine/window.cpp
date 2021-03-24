@@ -43,7 +43,7 @@ struct software_backend : public x11_window {
     software_backend(size<u16> _resolution) : x11_window(_resolution) {
         size<u16> resolution = get_drawable_resolution();
         gc = XCreateGC(dpy, win, 0, &values);
-        image = XShmCreateImage(dpy, CopyFromParent, vi->depth, ZPixmap, nullptr, &shminfo, resolution.w, resolution.h);
+        image = XShmCreateImage(dpy, CopyFromParent, vi->depth, ZPixmap, nullptr, &shminfo, resolution.x, resolution.y);
         shminfo.shmid = shmget(IPC_PRIVATE, static_cast<unsigned>(image->bytes_per_line * image->height), IPC_CREAT | 0666);
         shminfo.readOnly = False;
         shminfo.shmaddr = image->data = static_cast<char*>(shmat(shminfo.shmid, nullptr, 0));
@@ -72,7 +72,7 @@ struct software_backend : public x11_window {
             attach_shm(frame);
         }
         renderer_busy = true;
-        XShmPutImage(dpy, win, gc, image, 0, 0, 0, 0, frame.size().w, frame.size().h, true);
+        XShmPutImage(dpy, win, gc, image, 0, 0, 0, 0, frame.size().x, frame.size().y, true);
 	}
 };
 
@@ -104,7 +104,7 @@ x11_window::x11_window(size<u16> resolution) {
     cmap = XCreateColormap(dpy, root, vi->visual, AllocNone);
 	swa.colormap = cmap;
 	swa.event_mask = ExposureMask | KeyPressMask | PointerMotionMask;
-	win = XCreateWindow(dpy, root, 0, 0, resolution.w, resolution.h, 0, vi->depth, InputOutput, vi->visual, CWColormap | CWEventMask, &swa);
+	win = XCreateWindow(dpy, root, 0, 0, resolution.x, resolution.y, 0, vi->depth, InputOutput, vi->visual, CWColormap | CWEventMask, &swa);
 	XMapWindow(dpy, win);
 	XStoreName(dpy, win, "VERY SIMPLE APPLICATION");
 
@@ -209,7 +209,7 @@ win32_window::win32_window(size<u16> resolution) {
     if (RegisterClassEx(&wcx) == 0)
         printf("Failed to register WC\n");
 
-    hwnd = CreateWindowEx(0, wcx.lpszClassName, L"openglversioncheck", WS_OVERLAPPEDWINDOW | WS_VISIBLE, 0, 0, resolution.w, resolution.h, 0, 0, hInstance, this);
+    hwnd = CreateWindowEx(0, wcx.lpszClassName, L"openglversioncheck", WS_OVERLAPPEDWINDOW | WS_VISIBLE, 0, 0, resolution.x, resolution.y, 0, 0, hInstance, this);
     ShowWindow(hwnd, 1);
     resolution = get_drawable_resolution();
 }
@@ -260,12 +260,12 @@ struct software_backend : public win32_window {
 
     software_backend(size<u16> resolution_in) : win32_window(resolution_in) {
         bmih.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-        bmih.bmiHeader.biWidth = resolution.w;
-        bmih.bmiHeader.biHeight = -resolution.h;
+        bmih.bmiHeader.biWidth = resolution.x;
+        bmih.bmiHeader.biHeight = -resolution.y;
         bmih.bmiHeader.biPlanes = 1;
         bmih.bmiHeader.biCompression = BI_RGB;
         bmih.bmiHeader.biBitCount = 32;
-        bmih.bmiHeader.biSizeImage = resolution.w * resolution.h * 4;
+        bmih.bmiHeader.biSizeImage = resolution.w * resolution.y * 4;
 
         bitmap = CreateDIBSection(GetDC(hwnd), &bmih, DIB_RGB_COLORS, reinterpret_cast<void**>(&fb_ptr), NULL, NULL);
     }
@@ -302,7 +302,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) 
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hwnd, &ps);
             _mm_sfence();
-            SetDIBitsToDevice(hdc, 0, 0, resolution.w, resolution.h, 0, 0, 0, resolution.h, window->fb_ptr,  &window->bmih,   DIB_RGB_COLORS);
+            SetDIBitsToDevice(hdc, 0, 0, resolution.x, resolution.y, 0, 0, 0, resolution.y, window->fb_ptr,  &window->bmih,   DIB_RGB_COLORS);
             EndPaint(hwnd, &ps);
             return 0;
         }

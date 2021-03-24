@@ -11,7 +11,7 @@ static constexpr unsigned buffer_size = NUM_QUADS * VERTICES_PER_QUAD * sizeof(v
 
 void renderer_base::clear_sprites() {}
 
-void renderer_base::render_layer(std::multiset<subsprite> sprites) {
+void renderer_base::render_layer(std::multiset<sprite_data> sprites) {
     if (sprites.size() == 0 ) return;
     texture current_tex = (*sprites.begin()).tex;
     render_layers layer = (*sprites.begin()).layer;
@@ -22,15 +22,20 @@ void renderer_base::render_layer(std::multiset<subsprite> sprites) {
             current_tex = sprite.tex;
             layer = sprite.layer;
         }
+
         int quads_remaining = sprite.size;
         while (quads_remaining > 0) {
-            const vertex* src_ptr = sprite.data +  (sprite.size - quads_remaining)  * VERTICES_PER_QUAD;
+            const vertex* src_ptr = sprite.vertices +  (sprite.size - quads_remaining)  * VERTICES_PER_QUAD;
             vertex* dest_ptr = mapped_vertex_buffer + quads_batched * VERTICES_PER_QUAD;
+
             int quads_to_batch = std::min(NUM_QUADS - quads_batched, size_t(quads_remaining));
             int bytes_to_batch = quads_to_batch * VERTICES_PER_QUAD * sizeof(vertex);
+
             quads_remaining -= quads_to_batch;
             quads_batched += quads_to_batch;
+
             memcpy(dest_ptr, src_ptr, bytes_to_batch);
+
             if (quads_batched == NUM_QUADS) {
                 current_tex = sprite.tex;
                 layer = sprite.layer;
@@ -73,7 +78,7 @@ void renderer_base::load_textures() {
         texture tex = add_texture(it->first);
         texture_data data;
         load_pixel_data(data, "textures/" + list->get<std::string>(0));
-        data.subsprites = size<u16>(list->get<int>(1), list->get<int>(2));
+        data.regions = size<u16>(list->get<int>(1), list->get<int>(2));
         data.z_index = list->get<int>(3);
         data.scale_factor = list->get<int>(4);
         set_texture_data(tex, data);
@@ -322,18 +327,18 @@ renderer_gl::renderer_gl() {
 }
 
 void renderer_gl::set_viewport(size<u16> screen_size) {
-    glViewport(0, 0, screen_size.w, screen_size.h);
-    data->viewport = size<f32>(128.0f / screen_size.w, 128.0f / screen_size.h);
-    data->get_shader(render_layers::text).update_uniform("viewport", 2.0f / screen_size.w, 2.0f / screen_size.h);
-    data->get_shader(render_layers::ui).update_uniform("viewport", 2.0f / screen_size.w, 2.0f / screen_size.h);
-    data->get_shader(render_layers::sprites).update_uniform("viewport", data->viewport.w, data->viewport.h);
+    glViewport(0, 0, screen_size.x, screen_size.y);
+    data->viewport = size<f32>(128.0f / screen_size.x, 128.0f / screen_size.y);
+    data->get_shader(render_layers::text).update_uniform("viewport", 2.0f / screen_size.x, 2.0f / screen_size.y);
+    data->get_shader(render_layers::ui).update_uniform("viewport", 2.0f / screen_size.x, 2.0f / screen_size.y);
+    data->get_shader(render_layers::sprites).update_uniform("viewport", data->viewport.x, data->viewport.y);
     data->get_shader(render_layers::sprites).update_uniform("z_index", 0.0f);
     data->get_shader(render_layers::sprites).update_uniform("viewMatrix", data->camera.data());
 }
 
 void renderer_gl::set_camera(point<f32> delta) {
-    data->camera[12] = -((data->viewport.w) * delta.x);
-    data->camera[13] = (data->viewport.h) * delta.y;
+    data->camera[12] = -((data->viewport.x) * delta.x);
+    data->camera[13] = (data->viewport.y) * delta.y;
     data->get_shader(render_layers::sprites).update_uniform("viewMatrix", data->camera.data());
 }
 
@@ -348,7 +353,7 @@ void renderer_gl::process_texture_data(texture tex) {
     texture_data data = textures[tex];
     unsigned data_type = data.is_greyscale ? 0x1903 : GL_RGBA;
     bind_texture(tex);
-    glTexImage2D(GL_TEXTURE_2D, 0, data_type, data.image_data.size().w, data.image_data.size().h, 0, data_type, GL_UNSIGNED_BYTE, data.image_data.data().data());
+    glTexImage2D(GL_TEXTURE_2D, 0, data_type, data.image_data.size().x, data.image_data.size().y, 0, data_type, GL_UNSIGNED_BYTE, data.image_data.data().data());
     glGenerateMipmap(GL_TEXTURE_2D);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -372,7 +377,7 @@ void renderer_gl::process_texture_data(texture tex) {
 
 void renderer_software::clear_screen() {
     //printf("frame is %p, \n", reinterpret_cast<renderer_software*>(_renderer.get())->get_framebuffer().data());
-    //memset(fb.data(), 255, fb.size().w * fb.size().h * 4);
+    //memset(fb.data(), 255, fb.size().w * fb.size().y * 4);
 }
 
 texture renderer_software::add_texture(std::string name) {
@@ -391,24 +396,24 @@ void renderer_software::process_texture_data(texture tex_id) {
     auto& tex_data = textures[tex_id];
     image& tex = tex_data.image_data;
     size<f32> upscale_ratio (1.0f / tex_data.scale_factor, 1.0f / tex_data.scale_factor);
-    size<u16> upscaled_size(tex.size().w / upscale_ratio.w, tex.size().h / upscale_ratio.h);
-    image upscaled_tex(std::vector<u8>(upscaled_size.w * upscaled_size.h * 4), upscaled_size);
+    size<u16> upscaled_size(tex.size().x / upscale_ratio.x, tex.size().y / upscale_ratio.y);
+    image upscaled_tex(std::vector<u8>(upscaled_size.x * upscaled_size.y * 4), upscaled_size);
 
     size_t write_index = 0;
     size_t read_index = 0;
     point<f32> read_pos(0, 0);
-    for (size_t y = 0; y < upscaled_size.h; y++) {
-        for (size_t x = 0; x < upscaled_size.w; x++) {
-            read_index = int(read_pos.x) + int(read_pos.y) * tex.size().w ;
+    for (size_t y = 0; y < upscaled_size.y; y++) {
+        for (size_t x = 0; x < upscaled_size.x; x++) {
+            read_index = int(read_pos.x) + int(read_pos.y) * tex.size().x ;
             color c = tex.get(read_index);
             std::swap(c.r, c.b);
             upscaled_tex.write(write_index, c);
 
 
             write_index++;
-            read_pos.x += upscale_ratio.w;
+            read_pos.x += upscale_ratio.x;
         }
-        read_pos.y += upscale_ratio.h;
+        read_pos.y += upscale_ratio.y;
         read_pos.x = 0;
     }
     std::swap(tex_data.image_data, upscaled_tex);
@@ -475,15 +480,15 @@ void renderer_software::render_batch(texture current_tex, render_layers layer) {
         if (!AABB_collision(frame, sprite_rect)) continue;
 
         tl_vert.pos = point<f32>(std::max(0.0f, tl_vert.pos.x), std::max(0.0f, tl_vert.pos.y));
-        br_vert.pos = point<f32>(std::min(f32(fb.size().w), br_vert.pos.x), std::min(f32(fb.size().h), br_vert.pos.y));
+        br_vert.pos = point<f32>(std::min(f32(fb.size().x), br_vert.pos.x), std::min(f32(fb.size().y), br_vert.pos.y));
 
         size<u16> clipped_size(br_vert.pos.x - tl_vert.pos.x, br_vert.pos.y - tl_vert.pos.y);
-        size_t write_index = (tl_vert.pos.x  + (tl_vert.pos.y * fb.size().w)) * 4;
-        size_t bytes_per_line = clipped_size.w * 4;
-        size_t write_stride = (fb.size().w) * 4;
+        size_t write_index = (tl_vert.pos.x  + (tl_vert.pos.y * fb.size().x)) * 4;
+        size_t bytes_per_line = clipped_size.x * 4;
+        size_t write_stride = (fb.size().x) * 4;
 
-        for (size_t y = 0; y < clipped_size.h; y++) {
-            alt_memcpy(fb.data() + write_index + (y * write_stride) , tex.data().data() + (y * 4 *  tex.size().w), bytes_per_line);
+        for (size_t y = 0; y < clipped_size.y; y++) {
+            alt_memcpy(fb.data() + write_index + (y * write_stride) , tex.data().data() + (y * 4 *  tex.size().x), bytes_per_line);
         }
     }
     quads_batched = 0;

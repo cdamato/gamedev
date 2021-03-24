@@ -93,7 +93,7 @@ public:
 	void render();
 	void run_tick();
 
-    std::multiset<subsprite> sprites;
+    std::multiset<sprite_data> sprites;
 
 	template <typename f, typename... Args>
 	entity create_entity(f func, Args&&... args) {

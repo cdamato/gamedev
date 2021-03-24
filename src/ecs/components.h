@@ -79,27 +79,21 @@ struct weapon {
 /*     Visual Components     */
 /*****************************/
 
-class sprite : public component_base {
+class c_display : public component_base {
 public:
-	rect<f32> get_dimensions(u8 subsprite = 255);
-	u32 gen_subsprite(u16 num_quads, render_layers layer);
+	rect<f32> get_dimensions();
+	u32 add_sprite(u16 num_quads, render_layers layer);
+    sprite_data& sprites(size_t index) { return _sprites[index]; }
+	u32 num_sprites() {return _sprites.size(); }
 
-	subsprite& get_subsprite(size_t index) { return _subsprites[index]; }
-	u32 num_subsprites() {return _subsprites.size(); }
 	const std::vector<vertex>& vertices() { return _vertices; };
 
 	void rotate(f32 theta);
 	void move_by(point<f32>);
 	void move_to(point<f32>);
-
-	void set_uv(point<f32> pos, size<f32> size, size_t, size_t start);
-	void set_pos(point<f32>, size<f32>, size_t, size_t);
-
-	void update();
-
 private:
 	std::vector<vertex> _vertices {};
-	std::vector<subsprite> _subsprites;
+	std::vector<sprite_data> _sprites;
 };
 
 struct c_velocity : public component_base {
@@ -108,7 +102,7 @@ struct c_velocity : public component_base {
 
 struct c_collision: public component_base  {
 	std::function<void(u32)> on_collide;
-	std::vector<u8> disabled_subsprites; // Some sprites shouldn't have hitboxes e.g. healthbars
+	std::vector<u8> disabled_sprites; // Some sprites shouldn't have hitboxes e.g. healthbars
 
 	void set_team_detector(collision_flags);
 	u8 get_team_detectors();
@@ -167,7 +161,7 @@ struct c_health : public component_base {
 };
 
 struct c_healthbar : public component_base {
-	u8 subsprite_index;
+	u8 sprite_index;
 	size_t tex_index;
 	bool update;
 };
@@ -194,7 +188,7 @@ struct c_widget : public component_base {
 };
 
 struct c_text : public component_base {
-	u8 subsprite_index = 0;
+	u8 sprite_index = 0;
 	std::string text;
 };
 
@@ -202,7 +196,7 @@ struct c_selection : public component_base {
 	point<u16> active {};
 	size<u16> grid_size {};
 	int box_index = 65535; // Can be used to help display selection status
-	entity active_index() { return active.x + (active.y * grid_size.w); }
+	entity active_index() { return active.x + (active.y * grid_size.x); }
 };
 
 using c_mouseevent = event_wrapper<0>;
@@ -226,7 +220,7 @@ struct type_tag {};
 // If there's a better solution, let me know.
 
 #define ALL_COMPONENTS(m)\
-	m(sprite) m(c_collision) m(c_velocity) m(c_proximity)\
+	m(c_display) m(c_collision) m(c_velocity) m(c_proximity)\
 	m(c_health) m(c_damage) m(c_healthbar) m(c_weapon_pool) \
     m(c_enemy)\
 	m(c_player) m(c_inventory) m(c_mapdata)\

@@ -84,12 +84,12 @@ void read_neighbors(std::vector<u8>& tiles, int neighbors[8], int x_in, int y_in
 	int start_x = std::max(0, x_in - 1);
 	int start_y = std::max(0, y_in - 1);
 
-	for (int y = start_y; y <= std::min(y_in + 1, int(map_size.h - 1)); y++) {
-		for (int x = start_x; x <= std::min(x_in + 1, int(map_size.w - 1)); x++) {
+	for (int y = start_y; y <= std::min(y_in + 1, int(map_size.y - 1)); y++) {
+		for (int x = start_x; x <= std::min(x_in + 1, int(map_size.x - 1)); x++) {
 			if (x == x_in && y == y_in) continue;
 			int neighbor_index = (x - (x_in - 1)) + ((y - (y_in - 1)) * 3);
 			if (neighbor_index >= 4) neighbor_index -= 1;
-			neighbors[neighbor_index] = tiles[x + (y * map_size.w)];
+			neighbors[neighbor_index] = tiles[x + (y * map_size.x)];
 		}
 	}
 }
@@ -102,17 +102,15 @@ void set_map(engine& game, size<u16> dimensions, std::vector<u8> tiles) {
 
 	entity e = game.map_id();
 
-    game.ecs.remove_component<sprite>(e);
-    sprite& spr = game.ecs.add_component<sprite>(e);
+    game.ecs.remove<c_display>(e);
+    c_display& spr = game.ecs.add<c_display>(e);
 
-    c_mapdata& mapdata = game.ecs.get_component<c_mapdata>(e);
+    c_mapdata& mapdata = game.ecs.get<c_mapdata>(e);
 
     set_tilecollison_lookup(mapdata);
 
-	spr.gen_subsprite(tiles.size(), render_layers::sprites);
-	spr.get_subsprite(0).tex = game.renderer().get_texture("tilemap");
-
-	spr.set_pos(point<f32>(0,0), size<f32>(dimensions.w, dimensions.h), 0, 0);
+	spr.add_sprite(tiles.size(), render_layers::sprites);
+	spr.sprites(0).tex = game.renderer().get_texture("tilemap");
 
 	size_t index = 0;
 	u8 tile_type = 0;
@@ -121,15 +119,15 @@ void set_map(engine& game, size<u16> dimensions, std::vector<u8> tiles) {
 	auto write_tile = [&] (f32 pos_x, f32 pos_y, f32 tex_x, f32 tex_y) {
 		tex_x *= tex_w;
 		tex_y *= tex_h;
-		spr.set_pos(point<f32>(pos_x, pos_y), size<f32>(1, 1), 0, index);
-		spr.set_uv(point<f32>(tex_x, tex_y), size<f32>(tex_w, tex_h), 0, index);
+		spr.sprites(0).set_pos(point<f32>(pos_x, pos_y), size<f32>(1, 1), index);
+		spr.sprites(0).set_uv(point<f32>(tex_x, tex_y), size<f32>(tex_w, tex_h), index);
 		index++;
 
 	};
 
 	int neighbors[8] = {tile_type};
-	for (int y = 0; y < dimensions.h; y++) {
-		for (int x = 0; x < dimensions.w; x++) {
+	for (int y = 0; y < dimensions.y; y++) {
+		for (int x = 0; x < dimensions.x; x++) {
 
 			if (tiles[index] == 1) {
 				int type =  mt_random(0, 100) < 25 ? 0 : 0;
@@ -188,13 +186,13 @@ void set_map(engine& game, size<u16> dimensions, std::vector<u8> tiles) {
 
 void gen_obstaclething(entity e, engine& game, point<f32> pos) {
 
-	sprite& spr = game.ecs.add_component<sprite>(e);
+	c_display& spr = game.ecs.add<c_display>(e);
 	//spr->init(1);
-	spr.gen_subsprite(1, render_layers::sprites);
-	spr.get_subsprite(0).tex = game.renderer().get_texture("crate");
+	spr.add_sprite(1, render_layers::sprites);
+	spr.sprites(0).tex = game.renderer().get_texture("crate");
 
-	spr.set_pos(pos, size<f32>(1, 1), 0, 0);
-	spr.set_uv(point<f32>(0, 0), size<f32>(1.0f, 1.0f), 0, 0);
+	spr.sprites(0).set_pos(pos, size<f32>(1, 1), 0);
+	spr.sprites(0).set_uv(point<f32>(0, 0), size<f32>(1.0f, 1.0f), 0);
 }
 
 std::vector<u8> generate_map(size<u16> map_size) {
@@ -206,14 +204,14 @@ std::vector<u8> generate_map(size<u16> map_size) {
 	f32 min = 1;
 	f32 max = 0;
 
-	std::vector<f32> tile_raw (map_size.w * map_size.h);
+	std::vector<f32> tile_raw (map_size.x * map_size.y);
 
 	size_t index = 0;
-	for (int i = 1; i < map_size.h + 1; i++) {
-		for (int j = 1; j < map_size.w + 1; j++) {
+	for (int i = 1; i < map_size.y + 1; i++) {
+		for (int j = 1; j < map_size.x + 1; j++) {
 
-			double x = (double)j / ((double) map_size.w + 1);
-			double y = (double)i / ((double) map_size.h + 1);
+			double x = (double)j / ((double) map_size.x + 1);
+			double y = (double)i / ((double) map_size.y + 1);
 
 			f32 val = fabs(pnr.noise(x, y));
 			if (val < min) min = val;
@@ -229,8 +227,8 @@ std::vector<u8> generate_map(size<u16> map_size) {
 	int type_count = 3;
 	index = 0;
 	f32 denom = max - min;
-	for (int y = 0; y < map_size.h; y++) {
-		for (int x = 0; x < map_size.w; x++) {
+	for (int y = 0; y < map_size.y; y++) {
+		for (int x = 0; x < map_size.x; x++) {
 
 			f32 val = (tile_raw[index] - min) / denom;
 			f32 range = 1.0f / type_count;

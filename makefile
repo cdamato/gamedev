@@ -12,7 +12,7 @@ Debug:
 	@mkdir -p "Build/Debug"
 	$(MAKE) -f make_impl \
 	BUILD_DIR=Build/Debug \	SOURCE_DIRECTORIES="$(SOURCE_DIRS) src/" LIBRARY_DIR=/usr/local/lib \
-	LIBS="asan Xext ubsan freetype GLEW GL X11" CXXFLAGS_IN="-Wno-unused-parameter -fsanitize=undefined -fsanitize=address -O3 -g3 -Wall -Wextra" DEPFLAGS_IN="-M -MMD -MP"
+	LIBS="asan Xext ubsan freetype GLEW GL X11" CXXFLAGS_IN="-Wno-unused-parameter -fsanitize=undefined -fsanitize=address -g3 -Wall -Wextra" DEPFLAGS_IN="-M -MMD -MP"
 	  
 Release:
 	@mkdir -p "Build/Release"

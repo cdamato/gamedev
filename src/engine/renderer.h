@@ -16,8 +16,8 @@ public:
     virtual texture add_texture(std::string name) = 0;
 
     void clear_sprites();
-    void add_sprite(subsprite&);
-    void render_layer(std::multiset<subsprite>);
+    void add_sprite(sprite_data&);
+    void render_layer(std::multiset<sprite_data>);
 
     texture get_texture(std::string name);
     void set_texture_data(texture, texture_data);

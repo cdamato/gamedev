@@ -31,20 +31,20 @@ private:
 class ecs_engine {
 public:
 	template <typename T>
-	void remove_component(entity e) { components.get_pool(type_tag<T>()).remove(e); }
+	void remove(entity e) { components.get_pool(type_tag<T>()).remove(e); }
 
 	template <typename T>
-	constexpr T& get_component(entity e) {
+	constexpr T& get(entity e) {
 	    auto& pool = components.get_pool(type_tag<T>());
 	    if (!pool.exists(e)) throw "bruh";
 	    return pool.get(e);
 	}
 
 	template <typename T>
-	constexpr bool component_exists(entity e) {return components.get_pool(type_tag<T>()).exists(e); }
+	constexpr bool exists(entity e) {return components.get_pool(type_tag<T>()).exists(e); }
 
 	template <typename T>
-	constexpr T& add_component(entity e) {
+	constexpr T& add(entity e) {
 		auto& c = components.get_pool(type_tag<T>()).add(e, T());
 		c.ref = e;
 		return c;

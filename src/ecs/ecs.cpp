@@ -45,13 +45,13 @@ entity_manager::entity_manager() {
 
 void ecs_engine::run_ecs() {
     c_player& player = pool<c_player>().get(_player_id);
-	system_velocity_run(pool<c_velocity>(), pool<sprite>());
-	system_collison_run(pool<c_collision>(), pool<sprite>(), *pool<c_mapdata>().begin());
-	systems.shooting.run(pool<sprite>(), pool<c_weapon_pool>(), player);
+	system_velocity_run(pool<c_velocity>(), pool<c_display>());
+	system_collison_run(pool<c_collision>(), pool<c_display>(), *pool<c_mapdata>().begin());
+	systems.shooting.run(pool<c_display>(), pool<c_weapon_pool>(), player);
 	systems.health.run(pool<c_health>(), pool<c_damage>(), pool<c_healthbar>(), entities);
-	systems.health.update_healthbars(pool<c_healthbar>(), pool<c_health>(), pool<sprite>());
-    systems.proxinteract.run(pool<c_proximity>(), pool<c_keyevent>(), pool<sprite>().get(_player_id));
-	systems.text.run(pool<c_text>(), pool<sprite>());
+	systems.health.update_healthbars(pool<c_healthbar>(), pool<c_health>(), pool<c_display>());
+    systems.proxinteract.run(pool<c_proximity>(), pool<c_keyevent>(), pool<c_display>().get(_player_id));
+	systems.text.run(pool<c_text>(), pool<c_display>());
 	std::vector<entity> destroyed = entities.remove_marked();
 	for (auto entity : destroyed) {
 		components.remove_all(entity);
@@ -89,19 +89,19 @@ void tile_data::set_data(u8 quad_index, u8 type) {
     collision |= aa;
 }
 
-u32 sprite::gen_subsprite(u16 num_quads, render_layers layer) {
-    _subsprites.push_back(subsprite{null_texture, num_quads, _vertices.size() / VERTICES_PER_QUAD, nullptr, layer});
+u32 c_display::add_sprite(u16 num_quads, render_layers layer) {
+    _sprites.push_back(sprite_data{null_texture, num_quads, _vertices.size() / VERTICES_PER_QUAD, nullptr, layer});
     _vertices.resize(_vertices.size() + (VERTICES_PER_QUAD * num_quads));
     vertex* ptr = _vertices.data();
-    for (auto& subsprite : _subsprites) {
-        subsprite.data = ptr;
-        ptr += subsprite.size * VERTICES_PER_QUAD;
+    for (auto& sprite : _sprites) {
+        sprite.vertices = ptr;
+        ptr += sprite.size * VERTICES_PER_QUAD;
     }
-    return _subsprites.size() - 1;
+    return _sprites.size() - 1;
 }
 
 // Rotate sprite by an angle in radians. For proper rotation, origin needs to be in the center of the object.
-void sprite::rotate(f32 theta) {
+void c_display::rotate(f32 theta) {
     f32 s = sin(theta);
     f32 c = cos(theta);
     rect<f32> dimensions = get_dimensions();
@@ -114,50 +114,41 @@ void sprite::rotate(f32 theta) {
     }
 }
 
-void sprite::set_pos(point<f32> pos, size<f32> size, size_t subsprite, size_t quad) {
+void sprite_data::set_pos(point<f32> pos, ::size<f32> size, size_t quad) {
     // Vertices are in order top left, top right, bottom right, and bottom left
-    size_t index = (_subsprites[subsprite].start + quad) * VERTICES_PER_QUAD;
-    _vertices[index].pos = pos;
-    _vertices[index + 1].pos = point<f32>(pos.x + size.w, pos.y);
-    _vertices[index + 2].pos = pos + point<f32>(size.w, size.h);
-    _vertices[index + 3].pos = point<f32>(pos.x, pos.y + size.h);
+    size_t index = (quad) * VERTICES_PER_QUAD;
+    vertices[index].pos = pos;
+    vertices[index + 1].pos = point<f32>(pos.x + size.x, pos.y);
+    vertices[index + 2].pos = pos + point<f32>(size.x, size.y);
+    vertices[index + 3].pos = point<f32>(pos.x, pos.y + size.y);
 }
 
-void sprite::set_uv(point<f32> pos, size<f32> size, size_t subsprite, size_t quad) {
+void sprite_data::set_uv(point<f32> pos, ::size<f32> size, size_t quad) {
     // Vertices are in order top left, top right, bottom right, and bottom left
-    size_t index = (_subsprites[subsprite].start + quad) * VERTICES_PER_QUAD;
-    _vertices[index].uv = pos;
-    _vertices[index + 1].uv = point<f32>(pos.x + size.w, pos.y);
-    _vertices[index + 2].uv = pos + point<f32>(size.w, size.h);
-    _vertices[index + 3].uv = point<f32>(pos.x, pos.y + size.h);
+    size_t index = (quad) * VERTICES_PER_QUAD;
+    vertices[index].uv = pos;
+    vertices[index + 1].uv = point<f32>(pos.x + size.x, pos.y);
+    vertices[index + 2].uv = pos + point<f32>(size.x, size.y);
+    vertices[index + 3].uv = point<f32>(pos.x, pos.y + size.y);
 }
 
-void sprite::move_to(point<f32> pos) {
+void c_display::move_to(point<f32> pos) {
     point<f32> change = pos - _vertices[0].pos;
     move_by(change);
 }
 
-void sprite::move_by(point<f32> change) {
+void c_display::move_by(point<f32> change) {
     for (auto& vert : _vertices) {
         vert.pos += change;
     }
 }
 
-rect<f32> sprite::get_dimensions(u8 subsprite) {
-
-    size_t vert_begin = 0;
-    size_t vert_end = _vertices.size();
-
-    if (subsprite != 255) {
-        vert_begin = _subsprites[subsprite].start * 4;
-        vert_end = vert_begin + (_subsprites[subsprite].size * 4);
-    }
-
+rect<f32> calc_dimensoins(vertex* vert_array, size_t begin, size_t end) {
     point<f32> min(65535, 65535);
     point<f32> max(0, 0);
 
-    for (size_t i = vert_begin; i < vert_end ; i++) {
-        auto vertex = _vertices[i];
+    for (size_t i = begin; i < end ; i++) {
+        auto vertex = vert_array[i];
         min.x = std::min(min.x, vertex.pos.x);
         min.y = std::min(min.y, vertex.pos.y);
 
@@ -169,6 +160,13 @@ rect<f32> sprite::get_dimensions(u8 subsprite) {
     return rect<f32>(min, size<f32>(s.x, s.y));
 }
 
+rect<f32> c_display::get_dimensions() {
+    return calc_dimensoins(_vertices.data(), 0,  _vertices.size());
+}
+
+rect<f32> sprite_data::get_dimensions() {
+    return calc_dimensoins(vertices, 0, size);
+}
 /***************************/
 /*     ECS SYSTEM CODE     */
 /***************************/
@@ -177,20 +175,20 @@ rect<f32> sprite::get_dimensions(u8 subsprite) {
 /*     SAT Collision Detection     */
 /***********************************/
 
-bool is_subsprite_disabled(size_t i, c_collision& col) {
-    for (auto it : col.disabled_subsprites)
+bool is_sprite_disabled(size_t i, c_collision& col) {
+    for (auto it : col.disabled_sprites)
         if (it == i) return true;
     return false;
 }
 
-std::vector<point<f32>> get_normals(sprite& spr, c_collision& col) {
+std::vector<point<f32>> get_normals(c_display& spr, c_collision& col) {
     std::vector<point<f32>> axes;
     size_t index = 0;
-    for (size_t i = 0; i < spr.num_subsprites(); i++) {
-        if (is_subsprite_disabled(i, col)) continue;
+    for (size_t i = 0; i < spr.num_sprites(); i++) {
+        if (is_sprite_disabled(i, col)) continue;
 
-        index = spr.get_subsprite(i).start;
-        size_t max_size = index + (spr.get_subsprite(i).size * 4);
+        index = spr.sprites(i).start;
+        size_t max_size = index + (spr.sprites(i).size * 4);
 
         for (size_t j = index; j != max_size; j ++) {
             size_t vert_index = j + 1 == max_size ? 0 : j + 1;
@@ -201,14 +199,14 @@ std::vector<point<f32>> get_normals(sprite& spr, c_collision& col) {
     return axes;
 }
 
-void project_shape(sprite& spr, c_collision& col,point<f32> normal, f32& min, f32& max) {
+void project_shape(c_display& spr, c_collision& col,point<f32> normal, f32& min, f32& max) {
     size_t index = 0;
-    for (size_t i = 0; i < spr.num_subsprites(); i++) {
-        if (is_subsprite_disabled(i, col)) continue;
+    for (size_t i = 0; i < spr.num_sprites(); i++) {
+        if (is_sprite_disabled(i, col)) continue;
 
-        index = spr.get_subsprite(i).start;
+        index = spr.sprites(i).start;
 
-        for (size_t j = index; j != index + (spr.get_subsprite(i).size * 4); j ++) {
+        for (size_t j = index; j != index + (spr.sprites(i).size * 4); j ++) {
             point<f32> pos = spr.vertices()[j].pos;
             f32 projection = (pos.x * normal.x) + (pos.y * normal.y);
             min = std::min(min, projection);
@@ -217,7 +215,7 @@ void project_shape(sprite& spr, c_collision& col,point<f32> normal, f32& min, f3
     }
 }
 
-bool test_normalset(sprite& a_spr, c_collision& a_col, sprite& b_spr, c_collision& b_col, std::vector<point<f32>>& normals) {
+bool test_normalset(c_display& a_spr, c_collision& a_col, c_display& b_spr, c_collision& b_col, std::vector<point<f32>>& normals) {
     for (auto normal : normals) {
         f32 a_min = 65535, a_max = 0, b_min = 65535, b_max = 0;
 
@@ -233,7 +231,7 @@ bool test_normalset(sprite& a_spr, c_collision& a_col, sprite& b_spr, c_collisio
     return true;
 }
 
-bool test_collision(sprite& a, c_collision& a_col, sprite& b, c_collision& b_col) {
+bool test_collision(c_display& a, c_collision& a_col, c_display& b, c_collision& b_col) {
     std::vector<point<f32>> a_axes = get_normals(a, a_col);
     std::vector<point<f32>> b_axes = get_normals(b, b_col);
 
@@ -243,12 +241,12 @@ bool test_collision(sprite& a, c_collision& a_col, sprite& b, c_collision& b_col
 tile_data get_tiledata(c_mapdata& data, point<f32> pos) {
     point<f32> trunc_pos(trunc(pos.x), trunc(pos.y));
 
-    int tile_index =  trunc_pos.x + ( trunc_pos.y * data.size.w);
+    int tile_index =  trunc_pos.x + ( trunc_pos.y * data.size.x);
     return data.tiledata_lookup[data.map[tile_index]];
 }
 
 
-bool map_collision (sprite& spr, c_mapdata& data, u8 type) {
+bool map_collision (c_display& spr, c_mapdata& data, u8 type) {
     for (auto vertex : spr.vertices()) {
         // get the decimal part, then divide it by 0.50 to determine which half it's in, then floor to get an int
 
@@ -268,9 +266,9 @@ bool map_collision (sprite& spr, c_mapdata& data, u8 type) {
     return false;
 }
 
-void system_collison_run(pool<c_collision>& collisions, pool<sprite>& sprites, c_mapdata& data) {
+void system_collison_run(pool<c_collision>& collisions, pool<c_display>& sprites, c_mapdata& data) {
     for (auto col_a : collisions) {
-        sprite spr_a = sprites.get(col_a.ref);
+        c_display& spr_a = sprites.get(col_a.ref);
         //if (map_collision(spr_a, data, col_a.get_tilemap_collision())) { col_a.on_collide(data.ref); }
         u8 a_sig = col_a.get_team_signals();
         u8 a_dec = col_a.get_team_detectors();
@@ -282,7 +280,7 @@ void system_collison_run(pool<c_collision>& collisions, pool<sprite>& sprites, c
             u8 b_dec = col_b.get_team_detectors();
             if (((a_sig & b_dec) == 0) && ((b_sig & a_dec) == 0)) continue;
 
-            sprite spr_b = sprites.get(col_b.ref);
+            c_display& spr_b = sprites.get(col_b.ref);
             if (test_collision(spr_a, col_a, spr_b, col_b)) {
                 col_b.on_collide(col_a.ref);
                 col_a.on_collide(col_b.ref);
@@ -348,7 +346,7 @@ void s_health::set_entry(u32 index, f32 val) {
     }
 }
 
-void s_health::update_healthbars(pool<c_healthbar>& healthbars, pool<c_health>& healths, pool<sprite>& sprites) {
+void s_health::update_healthbars(pool<c_healthbar>& healthbars, pool<c_health>& healths, pool<c_display>& sprites) {
     if (healthbars.size() != last_atlassize) regenerate = true;
     last_atlassize = healthbars.size();
 
@@ -356,7 +354,7 @@ void s_health::update_healthbars(pool<c_healthbar>& healthbars, pool<c_health>& 
 
     size_t index = 0;
     size<u16> tex_size = size<u16>(8, 4 * healthbars.size());
-    data.image_data = image(std::vector<u8>(tex_size.w * tex_size.h * 4), tex_size);
+    data.image_data = image(std::vector<u8>(tex_size.x * tex_size.y * 4), tex_size);
     data.z_index = 2;
 
     size<f32> slice_size(1, 1.0f / healthbars.size());
@@ -366,22 +364,22 @@ void s_health::update_healthbars(pool<c_healthbar>& healthbars, pool<c_health>& 
         c_health& health = healths.get(healthbar.ref);
         healthbar.tex_index = index;
         // This is a new healthbar, not yet hooked up to sprites
-        sprite& spr = sprites.get(healthbar.ref);
+        c_display& spr = sprites.get(healthbar.ref);
 
-        if (healthbar.subsprite_index == 0) {
+        if (healthbar.sprite_index == 0) {
             point<f32> tl = spr.get_dimensions().bottom_left() + point<f32>(0, 0.1);
-            u32 index = spr.gen_subsprite(1, render_layers::sprites);
-            healthbar.subsprite_index = index;
-            spr.get_subsprite(index).tex = tex;
+            u32 index = spr.add_sprite(1, render_layers::sprites);
+            healthbar.sprite_index = index;
+            spr.sprites(index).tex = tex;
             size<f32> size(1, 0.25);
 
-            spr.set_pos(tl, size, 0, spr.get_subsprite(index).start );
+            spr.sprites(0).set_pos(tl, size, spr.sprites(index).start );
         }
 
-        spr.set_uv(pos, slice_size, 0, healthbar.subsprite_index);
+        spr.sprites(0).set_uv(pos, slice_size, healthbar.sprite_index);
         set_entry(index, (health.health / health.max_health) * 100.0f);
 
-        pos.y += slice_size.h;
+        pos.y += slice_size.y;
         index++;
     }
 
@@ -395,29 +393,30 @@ void s_health::update_healthbars(pool<c_healthbar>& healthbars, pool<c_health>& 
 
 
 
-bool test_proximity_collision(c_proximity& c, sprite& spr) {
+bool test_proximity_collision(c_proximity& c, c_display& spr) {
     if(c.shape == c_proximity::shape::rectangle)
-        return AABB_collision(rect<f32>(c.origin, c.radii), spr.get_dimensions(0));
+        return AABB_collision(rect<f32>(c.origin, c.radii), spr.sprites(0).get_dimensions());
     if(c.shape == c_proximity::shape::elipse) {
-        point<f32> p = spr.get_dimensions(0).center();
-        f32 left_side = pow(p.x - c.origin.x, 2) / pow(c.radii.w, 2);
-        f32 right_side = pow(p.y - c.origin.y, 2) / pow(c.radii.h, 2);
+        point<f32> p = spr.sprites(0).get_dimensions().center();
+        f32 left_side = pow(p.x - c.origin.x, 2) / pow(c.radii.x, 2);
+        f32 right_side = pow(p.y - c.origin.y, 2) / pow(c.radii.y, 2);
         return left_side + right_side <= 1;
     }
     return false;
 }
+
 template <typename T>
 f32 distance(T a, T b) {
     return sqrt(pow(b.x - a.x, 2) + pow(b.y - a.y, 2));
 }
 
-void s_proxinteract::run(pool<c_proximity>& proximities, pool <c_keyevent>& keyevents, sprite& player_spr) {
+void s_proxinteract::run(pool<c_proximity>& proximities, pool <c_keyevent>& keyevents, c_display& player_spr) {
     f32 min = 1000;
     entity current_min = 65535;
     for(auto& proximity : proximities) {
         if (!keyevents.exists(proximity.ref)) continue;
         if (test_proximity_collision(proximity, player_spr)) {
-            f32 score = distance(proximity.origin, player_spr.get_dimensions(0).origin);
+            f32 score = distance(proximity.origin, player_spr.sprites(0).get_dimensions().origin);
             if (score < min) {
                 min = score;
                 current_min = proximity.ref;
@@ -431,14 +430,14 @@ void s_proxinteract::run(pool<c_proximity>& proximities, pool <c_keyevent>& keye
 /*     Misc. Systems     */
 /*************************/
 
-void system_velocity_run(pool<c_velocity>& velocities, pool<sprite>& sprites) {
+void system_velocity_run(pool<c_velocity>& velocities, pool<c_display>& sprites) {
     for (auto velocity : velocities) {
-        sprite& spr = sprites.get(velocity.ref);
+        c_display& spr = sprites.get(velocity.ref);
         spr.move_by(velocity.delta);
     }
 }
 
-void s_shooting::run(pool<sprite>& sprites, pool<c_weapon_pool> weapons, c_player& p) {
+void s_shooting::run(pool<c_display>& sprites, pool<c_weapon_pool> weapons, c_player& p) {
     auto& pool =  weapons.get(p.ref);
     weapon active = pool.weapons.get(pool.current);
     if (p.shoot == true && active.t.elapsed<timer::ms>() > timer::ms(active.stats.cooldown)) {
@@ -467,7 +466,7 @@ s_text::s_text() {
 /*
 f32 calc_fontsize(size<f32> box) {
     u8 dpi = 96;
-    f32 lineheight_inches = ((box.h) / static_cast<f32>(dpi));
+    f32 lineheight_inches = ((box.y) / static_cast<f32>(dpi));
     return (72.0f / (1.0f / lineheight_inches)) * 0.9;
 }
 
@@ -511,38 +510,38 @@ void render_line(FT_Face face, std::string text, std::vector<u8>& bmp, point<u16
 }
 */
 
-void s_text::run(pool<c_text>& texts, pool<sprite>& sprites) {/*
+void s_text::run(pool<c_text>& texts, pool<c_display>& sprites) {/*
     if (texts.size() != last_atlassize) reconstruct_atlas = true;
     if (reconstruct_atlas == false) return;
 
     size<f32> atlas_size(0, 0);
 
-    for(auto sprite : sprites) {
+    for(auto& sprite : sprites) {
         if (!texts.exists(sprite.ref)) continue;
-        auto dim =  sprite.get_dimensions(texts.get(sprite.ref).subsprite_index);
-        atlas_size.h += dim.size.h;
-        atlas_size.w = std::max(dim.size.w, atlas_size.w);
+        auto dim =  sprite.get_dimensions(texts.get(sprite.ref).sprite_index);
+        atlas_size.y += dim.size.y;
+        atlas_size.w = std::max(dim.size.x, atlas_size.x);
     }
 
-    texture_data = std::vector<u8>(atlas_size.w * atlas_size.h);
+    texture_data = std::vector<u8>(atlas_size.w * atlas_size.y);
 
     point<u16> pen(0, 0);
 
     for(auto text : texts) {
-        auto dim =  sprites.get(text.ref).get_dimensions(text.subsprite_index);
+        auto dim =  sprites.get(text.ref).get_dimensions(text.sprite_index);
         u8 num_lines = num_newlines(text.text);
         f32 fontsize = (calc_fontsize(dim.size) / num_lines) / 2;
 
         FT_Set_Char_Size( data->face, fontsize * 64, 0, 100, 0 );
 
         render_line( data->face, text.text, texture_data, pen,
-                     atlas_size.w, dim.size.h / num_lines);
+                     atlas_size.x, dim.size.y / num_lines);
 
-        point<f32> pos(0, pen.y / static_cast<f32>(atlas_size.h));
-        size<f32> new_dim(dim.size.w / static_cast<f32>(atlas_size.w), dim.size.h / static_cast<f32>(atlas_size.h));
+        point<f32> pos(0, pen.y / static_cast<f32>(atlas_size.y));
+        size<f32> new_dim(dim.size.w / static_cast<f32>(atlas_size.x), dim.size.y / static_cast<f32>(atlas_size.y));
 
-        sprites.get(text.ref).set_uv(pos, new_dim, 0, text.subsprite_index);
-        sprites.get(text.ref).get_subsprite(text.subsprite_index).tex = atlas;
-        pen.y += dim.size.h ;
+        sprites.get(text.ref).set_uv(pos, new_dim, 0, text.sprite_index);
+        sprites.get(text.ref).sprites(text.sprite_index).tex = atlas;
+        pen.y += dim.size.y ;
     }*/
 }

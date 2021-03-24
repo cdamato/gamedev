@@ -1,4 +1,3 @@
-#include "main/world.h"
 #include "engine/engine.h"
 #include <mutex>
 #include "common/parser.h"
@@ -56,13 +55,13 @@ void init_npc_hub(engine& g) {
     g.create_entity([&](entity e, engine& g) {
         basic_sprite_setup(e, g, render_layers::sprites, sc_origin, sc_size, point<f32>(0, 0), size<f32>(1, 1), "button");
 
-        c_inventory& inv = g.ecs.add_component<c_inventory>(e);
-        c_proximity& prox = g.ecs.add_component<c_proximity>(e);
+        c_inventory& inv = g.ecs.add<c_inventory>(e);
+        c_proximity& prox = g.ecs.add<c_proximity>(e);
         prox.shape = c_proximity::shape::rectangle;
         prox.origin = point<f32>(sc_origin.x - 1, sc_origin.y);
-        prox.radii = size<f32>(sc_size.w + 2, sc_size.h + 1);
+        prox.radii = size<f32>(sc_size.x + 2, sc_size.y + 1);
 
-        c_keyevent& on_activate = g.ecs.add_component<c_keyevent>(e);
+        c_keyevent& on_activate = g.ecs.add<c_keyevent>(e);
         on_activate.add_event([&](entity e, const event& ev, engine& g_in) {
             if (g_in.command_states.test(command::toggle_inventory)) {
                 g_in.destroy_entity(g_in.ui.focus);
@@ -85,12 +84,12 @@ void init_npc_hub(engine& g) {
     g.create_entity([&](entity e, engine& g) {
         //basic_sprite_setup(e, g, render_layers::sprites, dp_origin, dp_size, point<f32>(0, 0), size<f32>(1, 1), "button");
 
-        c_proximity& prox = g.ecs.add_component<c_proximity>(e);
+        c_proximity& prox = g.ecs.add<c_proximity>(e);
         prox.shape = c_proximity::shape::rectangle;
         prox.origin = point<f32>(dp_origin.x - 1, dp_origin.y);
-        prox.radii = size<f32>(dp_size.w + 2, dp_size.h + 1);
+        prox.radii = size<f32>(dp_size.x + 2, dp_size.y + 1);
 
-        c_keyevent& on_activate = g.ecs.add_component<c_keyevent>(e);
+        c_keyevent& on_activate = g.ecs.add<c_keyevent>(e);
         on_activate.add_event([&](entity e, const event& ev, engine& g_in) {
             g.destroy_entity(e);
             init_dungeon(g_in);
@@ -108,7 +107,7 @@ void init_main_menu(engine& eng) {
         basic_sprite_setup(e, g, render_layers::ui, point<f32>(100, 500), size<f32>(64, 64), point<f32>(0, 0), size<f32>(1, 1), "button");
         make_widget(e, g, eng.ui.root);
 
-        c_mouseevent& on_click = g.ecs.add_component<c_mouseevent>(e);
+        c_mouseevent& on_click = g.ecs.add<c_mouseevent>(e);
         on_click.add_event([&](entity e, const event& ev, engine& g_in) {
             if (ev.active_state()) return true;
             g.destroy_entity(e);

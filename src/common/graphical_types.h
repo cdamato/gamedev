@@ -53,7 +53,7 @@ struct vertex {
 struct texture_data {
     f32 z_index;
     image image_data;
-    size<u16> subsprites;
+    size<u16> regions;
     int scale_factor;
     bool is_greyscale = false;
 };
@@ -66,14 +66,18 @@ enum class render_layers : u8 {
     ui
 };
 
-struct subsprite {
+struct sprite_data {
     texture tex = null_texture;
     u16 size = 0;
     u16 start = 0;
-    vertex* data;
+    vertex* vertices;
     render_layers layer;
 
-    inline bool operator < (const subsprite& rhs ) const { return tex < rhs.tex; }
+    inline bool operator < (const sprite_data& rhs ) const { return tex < rhs.tex; }
+
+    rect<f32> get_dimensions();
+    void set_uv(point<f32> pos, ::size<f32> size, size_t start);
+    void set_pos(point<f32>, ::size<f32>, size_t);
 };
 
 

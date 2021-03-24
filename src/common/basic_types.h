@@ -48,11 +48,11 @@ struct point {
 
 template <typename T>
 struct size {
-	T w = 0, h = 0;
-	constexpr size(const T w_in = 0, const T h_in = 0) noexcept : w(w_in), h(h_in) {};
+	T x = 0, y = 0;
+	constexpr size(const T x_in = 0, const T y_in = 0) noexcept : x(x_in), y(y_in) {};
 
 	template <typename U>
-	constexpr size<U> to() { return size<U>(static_cast<U>(w), static_cast<U>(h)); }
+	constexpr size<U> to() { return size<U>(static_cast<U>(x), static_cast<U>(y)); }
 };
 
 
@@ -69,12 +69,12 @@ public:
 		size = size_type(br.x - tl.x, br.y - tl.y);
 	};
 
-	constexpr point<T> top_right() { return point<T>(origin.x + size.w, origin.y); }
+	constexpr point<T> top_right() { return point<T>(origin.x + size.x, origin.y); }
 	//constexpr point<T> bottom_left() { return origin; }
-	constexpr point<T> bottom_right() { return point<T>(origin.x + size.w, origin.y + size.h); }
-	constexpr point<T> bottom_left() { return point<T>(origin.x, origin.y + size.h); }
+	constexpr point<T> bottom_right() { return point<T>(origin.x + size.x, origin.y + size.y); }
+	constexpr point<T> bottom_left() { return point<T>(origin.x, origin.y + size.y); }
 
-	constexpr point<T> center() { return point<T>(origin.x + size.w / 2, origin.y + size.h / 2);};
+	constexpr point<T> center() { return point<T>(origin.x + size.x / 2, origin.y + size.y / 2);};
 	size_type size {};
 	point<T> origin {};
 };

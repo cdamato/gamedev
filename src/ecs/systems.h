@@ -29,14 +29,14 @@ struct s_shooting {
 
 	std::vector<bullet> bullet_types;
 	bullet_func shoot;
-	void run(pool<sprite>&, pool<c_weapon_pool>, c_player&);
+	void run(pool<c_display>&, pool<c_weapon_pool>, c_player&);
 };
 
 
 struct s_health : public texture_generator {
 public:
 	void run(pool<c_health>&, pool<c_damage>&, pool<c_healthbar>&, entity_manager&);
-	void update_healthbars(pool<c_healthbar>&, pool<c_health>&, pool<sprite>&);
+	void update_healthbars(pool<c_healthbar>&, pool<c_health>&, pool<c_display>&);
 private:
 	void set_entry(u32, f32);
 };
@@ -46,7 +46,7 @@ public:
 	texture atlas;
 	s_text();
 
-	void run(pool<c_text>&, pool<sprite>&);
+	void run(pool<c_text>&, pool<c_display>&);
 	std::vector<u8> get_texdata() { return texture_data; }
 private:
     struct impl;
@@ -56,14 +56,14 @@ private:
 	bool reconstruct_atlas = true;
 };
 
-void system_collison_run(pool<c_collision>&, pool<sprite>&, c_mapdata&);
-void system_velocity_run(pool<c_velocity>&, pool<sprite>&);
+void system_collison_run(pool<c_collision>&, pool<c_display>&, c_mapdata&);
+void system_velocity_run(pool<c_velocity>&, pool<c_display>&);
 
 // Combine proximity detectors and keypresses to allow us to "interact" with world entities
 class s_proxinteract {
 public:
     entity active_interact = 65535;
-    void run(pool<c_proximity>&, pool <c_keyevent>&, sprite&);
+    void run(pool<c_proximity>&, pool <c_keyevent>&, c_display&);
 };
 
 struct system_manager {
