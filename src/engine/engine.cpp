@@ -4,7 +4,7 @@
 
 
 void engine::run_tick() {
-    point<f32> start_pos = ecs.get<c_display>(player_id()).get_dimensions().origin;
+    world_coords start_pos = ecs.get<c_display>(player_id()).get_dimensions().origin;
 
     ecs.run_ecs();
     ui.active_interact = ecs.systems.proxinteract.active_interact;
@@ -32,7 +32,7 @@ void engine::run_tick() {
         }
     }
 
-    point<f32> end_pos = ecs.get<c_display>(player_id()).get_dimensions().origin;
+    world_coords end_pos = ecs.get<c_display>(player_id()).get_dimensions().origin;
     offset += (end_pos - start_pos);
 }
 
@@ -79,7 +79,7 @@ settings_manager::settings_manager() {
     auto d = p.parse();
 
     const config_list* list = dynamic_cast<const config_list*>(d->get("window_size"));
-    resolution = size<u16>(list->get<int>(0), list->get<int>(1));
+    resolution = screen_coords(list->get<int>(0), list->get<int>(1));
 
     int fullscreen =  d->get<int>("fullscreen");
     if (fullscreen != 0) flags.set(window_flags::fullscreen);
@@ -91,12 +91,12 @@ settings_manager::settings_manager() {
 
 
 template <int type>
-entity at_cursor(entity e, engine& g, point<f32> cursor) {
+entity at_cursor(entity e, engine& g, screen_coords cursor) {
     entity next = 65535;
     c_widget& w = g.ecs.get<c_widget>(e);
     for (auto it = w.children.begin(); it != w.children.end(); it++) {
         if (!g.ecs.exists<event_wrapper<type>>(*it)) continue;
-        if (test_collision(g.ecs.get<c_display>(*it).get_dimensions(), cursor)) next = *it;
+        if (test_collision(g.ecs.get<c_display>(*it).get_dimensions(), cursor.to<f32>())) next = *it;
     }
 
     if (next == 65535) return e;
@@ -111,7 +111,7 @@ bool handle_button(event& e, engine& g) {
         success = g.ecs.get<c_mouseevent>(dest).run_event(e);
     if (success) return true;
 
-    point<f32> h (e.pos.x / 64.0f, e.pos.y / 64.0f);
+    world_coords h (e.pos.x / 64.0f, e.pos.y / 64.0f);
     if (e.active_state() && g.in_dungeon) {
         c_player& p = g.ecs.get<c_player>(g.player_id());
         p.shoot = true;
@@ -143,15 +143,15 @@ bool handle_keypress(event& e, engine& g) {
                 g.destroy_entity(g.ui.focus);
                 g.ui.focus = 65535;
                 g.ui.cursor = 65535;
-            }
-            else
+            } else {
                 g.create_entity(inventory_init, g.ui.root, g.ecs.get<c_inventory>(g.player_id()), point<u16>(100, 100));
+            }
             g.command_states.set(command::toggle_inventory, !toggle_state);
             return false;
         }
         default: {  // Semantically, using the default case for movement is wrong, but I don't want to chain all four movement cases together
             g.command_states.set(command, e.active_state());
-            point<f32>& velocity = g.ecs.get<c_velocity>(g.player_id()).delta;
+            world_coords& velocity = g.ecs.get<c_velocity>(g.player_id()).delta;
             velocity.x = 0.05 * (g.command_states.test(command::move_right) - g.command_states.test(command::move_left));
             velocity.y = 0.05 * (g.command_states.test(command::move_down) - g.command_states.test(command::move_up));
             return true;
@@ -212,17 +212,15 @@ engine::engine()  : settings(), window(settings){
 
     printf("Window Initialized\n");
     window.set_event_callback([this](event& ev) { process_event(ev, *this); });
-    window.set_resize_callback([this](size<u16> size) {
-        renderer().set_viewport(size);
-    });
+    window.set_resize_callback([this](screen_coords size) { renderer().set_viewport(size); });
 
     if (settings.flags.test(window_flags::use_software_render)) {
         _renderer = std::unique_ptr<renderer_base>(new renderer_software(settings.resolution));
     } else {
         _renderer = std::unique_ptr<renderer_base>(new renderer_gl);
     }
-    ecs.systems.shooting.bullet_types.push_back(s_shooting::bullet{size<f32>(0.3, 0.6), point<f32>(8, 8), "bullet"});
-    ecs.systems.shooting.shoot = [this] (std::string s, size<f32> d, point<f32> v, point<f32> o, point<f32> t, collision_flags a) {
+    ecs.systems.shooting.bullet_types.push_back(s_shooting::bullet{world_coords(0.3, 0.6), world_coords(8, 8), "bullet"});
+    ecs.systems.shooting.shoot = [this] (std::string s, world_coords d, world_coords v, world_coords o, world_coords t, collision_flags a) {
         create_entity(egen_bullet, s, d, v, o, t, a);
     };
 

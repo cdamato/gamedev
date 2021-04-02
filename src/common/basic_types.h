@@ -17,65 +17,62 @@ using f32 = float;
 
 
 template <typename T>
-struct point {
+struct vec2d {
 	T x = 0, y = 0;
-	constexpr point  (const T x_in = 0, const T y_in = 0) noexcept : x(x_in), y(y_in) {};
+	constexpr vec2d  (const T x_in = 0, const T y_in = 0) noexcept : x(x_in), y(y_in) {};
 
 	template <typename U>
-	constexpr point<U> to() { return point<U>(static_cast<U>(x), static_cast<U>(y)); }
-	constexpr bool operator == (const point<T>& rhs) const {
+	constexpr vec2d<U> to() const { return vec2d<U>(static_cast<U>(x), static_cast<U>(y)); }
+	constexpr bool operator == (const vec2d<T>& rhs) const {
 		return x == rhs.x && y == rhs.y;
 	}
-	constexpr point<T>& operator += (const point<T>& rhs) {
+	constexpr vec2d<T>& operator += (const vec2d<T>& rhs) {
 		x = x + rhs.x;
 		y = y + rhs.y;
 		return *this;
 	}
-	constexpr friend point<T> operator + (point<T> lhs, const point<T>& rhs) {
+	constexpr friend vec2d<T> operator + (vec2d<T> lhs, const vec2d<T>& rhs) {
 		lhs += rhs;
 		return lhs;
 	}
-	constexpr point<T>& operator -= (const point<T>& rhs) {
+	constexpr vec2d<T>& operator -= (const vec2d<T>& rhs) {
 		x = x - rhs.x;
 		y = y - rhs.y;
 		return *this;
 	}
-	constexpr friend point<T> operator - (point<T> lhs, const point<T>& rhs) {
+	constexpr friend vec2d<T> operator - (vec2d<T> lhs, const vec2d<T>& rhs) {
 		lhs -= rhs;
 		return lhs;
 	}
 };
 
-template <typename T>
-struct size {
-	T x = 0, y = 0;
-	constexpr size(const T x_in = 0, const T y_in = 0) noexcept : x(x_in), y(y_in) {};
+using screen_coord_t = u16;
+using screen_coords = vec2d<screen_coord_t>;
 
-	template <typename U>
-	constexpr size<U> to() { return size<U>(static_cast<U>(x), static_cast<U>(y)); }
-};
+using world_coord_t = f32;
+using world_coords = vec2d<world_coord_t>;
+
+using sprite_coord_t = f32;
+using sprite_coords = vec2d<sprite_coord_t>;
+
+template <typename T>
+using size = vec2d<T>;
+
+template <typename T>
+using point = vec2d<T>;
 
 
 template <typename T>
 struct rect {
-private:
-	// Alias, in order to use "size" as member name
-	using size_type = ::size<T>;
-public:
 	constexpr rect() noexcept = default;
-	constexpr rect(point<T> p, size_type s) noexcept : size(s), origin(p)  {};
-	constexpr rect(point<T> tl, point<T> br) noexcept {
-		origin = tl;
-		size = size_type(br.x - tl.x, br.y - tl.y);
-	};
+	constexpr rect(point<T> p, ::size<T> s) noexcept : size(s), origin(p)  {};
 
-	constexpr point<T> top_right() { return point<T>(origin.x + size.x, origin.y); }
-	//constexpr point<T> bottom_left() { return origin; }
-	constexpr point<T> bottom_right() { return point<T>(origin.x + size.x, origin.y + size.y); }
-	constexpr point<T> bottom_left() { return point<T>(origin.x, origin.y + size.y); }
+	constexpr vec2d<T> top_right() { return vec2d<T>(origin.x + size.x, origin.y); }
+	constexpr vec2d<T> bottom_right() { return vec2d<T>(origin.x + size.x, origin.y + size.y); }
+	constexpr vec2d<T> bottom_left() { return vec2d<T>(origin.x, origin.y + size.y); }
+	constexpr vec2d<T> center() { return vec2d<T>(origin.x + size.x / 2, origin.y + size.y / 2);};
 
-	constexpr point<T> center() { return point<T>(origin.x + size.x / 2, origin.y + size.y / 2);};
-	size_type size {};
+    ::size<T> size {};
 	point<T> origin {};
 };
 
@@ -87,7 +84,7 @@ bool test_range(T a, T b, T c) {
 }
 
 template <typename T>
-bool test_collision(rect<T> r, point<T> p) {
+bool test_collision(rect<T> r, vec2d<T> p) {
 	bool x = test_range(r.origin.x, p.x, r.bottom_right().x);
 	bool y = test_range(r.origin.y, p.y, r.bottom_right().y);
 
@@ -112,6 +109,11 @@ struct no_move {
 	no_move& operator = (no_move&&) = delete;
 };
 
+using entity = u32;
+using texture = u32;
+constexpr static entity null_entity = 65535;
+constexpr static texture null_texture = 65535;
+
 class timer {
     std::chrono::steady_clock::time_point _start;
 public:
@@ -120,12 +122,8 @@ public:
     using microseconds = std::chrono::microseconds;
 
     template <typename T>
-    T elapsed() {
-        return  std::chrono::duration_cast<T>(std::chrono::steady_clock::now() - _start);
-    }
-    void start() {
-        _start = std::chrono::steady_clock::now();
-    }
+    T elapsed() { return std::chrono::duration_cast<T>(std::chrono::steady_clock::now() - _start); }
+    void start() { _start = std::chrono::steady_clock::now(); }
     timer() { start(); }
 };
 

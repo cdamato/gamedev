@@ -89,15 +89,15 @@ public:
 	const std::vector<vertex>& vertices() { return _vertices; };
 
 	void rotate(f32 theta);
-	void move_by(point<f32>);
-	void move_to(point<f32>);
+	void move_by(sprite_coords);
+	void move_to(sprite_coords);
 private:
 	std::vector<vertex> _vertices {};
 	std::vector<sprite_data> _sprites;
 };
 
 struct c_velocity : public component_base {
-	point<f32> delta;
+	sprite_coords delta;
 };
 
 struct c_collision: public component_base  {
@@ -121,8 +121,8 @@ struct c_proximity : public component_base {
         elipse
     } shape;
 
-    point<f32> origin;
-    size<f32> radii;
+	world_coords origin;
+    world_coords radii;
 };
 
 /*****************************/
@@ -131,14 +131,14 @@ struct c_proximity : public component_base {
 
 struct c_mapdata : public component_base {
 	std::vector<u8> map;
-	::size<u16> size;
+	world_coords size;
 	std::vector<tile_data> tiledata_lookup;
-	tile_data get_tiledata(point<f32>);
+	tile_data get_tiledata(world_coords);
 };
 
 struct c_player : public component_base {
 	bool shoot = false;
-	point<f32> target;
+	world_coords target;
 };
 
 struct c_inventory : public component_base {

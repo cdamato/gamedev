@@ -19,11 +19,11 @@ void test_enemies_gone(engine& e) {
 void init_dungeon(engine& e) {
 
     e.in_dungeon = true;
-    size<u16> map_size(32, 32);
+    world_coords map_size(32, 32);
     set_map(e, map_size, generate_map(map_size));
 
-    e.create_entity(egen_enemy, point<f32>(8, 8));
-    e.create_entity(egen_enemy, point<f32>(3, 9));
+    e.create_entity(egen_enemy, world_coords(8, 8));
+    e.create_entity(egen_enemy, world_coords(3, 9));
     e.logic.add(&test_enemies_gone);
 }
 
@@ -34,7 +34,7 @@ void init_npc_hub(engine& g) {
     auto d = p.parse();
 
     const auto* mapsize = dynamic_cast<const config_list*>(d->get("map_size"));
-    size<u16> map_size(mapsize->get<int>(0), mapsize->get<int>(1));
+    world_coords map_size(mapsize->get<int>(0), mapsize->get<int>(1));
 
     std::string tiledata_string = d->get<std::string>("tile_data");
     std::vector<u8> tile_data(tiledata_string.size());
@@ -49,8 +49,8 @@ void init_npc_hub(engine& g) {
     const config_dict* storagechest_dict = dynamic_cast<const config_dict*>(d->get("storage_chest"));
     const config_list* scpos = dynamic_cast<const config_list*>(storagechest_dict->get("pos"));
     const config_list* scsize = dynamic_cast<const config_list*>(storagechest_dict->get("size"));
-    point<f32> sc_origin(scpos->get<int>(0), scpos->get<int>(1));
-    size<f32> sc_size(scsize->get<int>(0), scsize->get<int>(1));
+    world_coords sc_origin(scpos->get<int>(0), scpos->get<int>(1));
+    world_coords sc_size(scsize->get<int>(0), scsize->get<int>(1));
 
     g.create_entity([&](entity e, engine& g) {
         basic_sprite_setup(e, g, render_layers::sprites, sc_origin, sc_size, point<f32>(0, 0), size<f32>(1, 1), "button");
@@ -58,8 +58,8 @@ void init_npc_hub(engine& g) {
         c_inventory& inv = g.ecs.add<c_inventory>(e);
         c_proximity& prox = g.ecs.add<c_proximity>(e);
         prox.shape = c_proximity::shape::rectangle;
-        prox.origin = point<f32>(sc_origin.x - 1, sc_origin.y);
-        prox.radii = size<f32>(sc_size.x + 2, sc_size.y + 1);
+        prox.origin = world_coords(sc_origin.x - 1, sc_origin.y);
+        prox.radii = world_coords(sc_size.x + 2, sc_size.y + 1);
 
         c_keyevent& on_activate = g.ecs.add<c_keyevent>(e);
         on_activate.add_event([&](entity e, const event& ev, engine& g_in) {
@@ -78,16 +78,16 @@ void init_npc_hub(engine& g) {
     const config_dict* dungeonportal_dict = dynamic_cast<const config_dict*>(d->get("dungeon_portal"));
     const config_list* dppos = dynamic_cast<const config_list*>(dungeonportal_dict->get("pos"));
     const config_list* dpsize = dynamic_cast<const config_list*>(dungeonportal_dict->get("size"));
-    point<f32> dp_origin(dppos->get<int>(0), dppos->get<int>(1));
-    size<f32> dp_size(dpsize->get<int>(0), dpsize->get<int>(1));
+    world_coords dp_origin(dppos->get<int>(0), dppos->get<int>(1));
+    world_coords dp_size(dpsize->get<int>(0), dpsize->get<int>(1));
 
     g.create_entity([&](entity e, engine& g) {
         //basic_sprite_setup(e, g, render_layers::sprites, dp_origin, dp_size, point<f32>(0, 0), size<f32>(1, 1), "button");
 
         c_proximity& prox = g.ecs.add<c_proximity>(e);
         prox.shape = c_proximity::shape::rectangle;
-        prox.origin = point<f32>(dp_origin.x - 1, dp_origin.y);
-        prox.radii = size<f32>(dp_size.x + 2, dp_size.y + 1);
+        prox.origin = world_coords(dp_origin.x - 1, dp_origin.y);
+        prox.radii = world_coords(dp_size.x + 2, dp_size.y + 1);
 
         c_keyevent& on_activate = g.ecs.add<c_keyevent>(e);
         on_activate.add_event([&](entity e, const event& ev, engine& g_in) {
@@ -104,7 +104,7 @@ void init_npc_hub(engine& g) {
 
 void init_main_menu(engine& eng) {
     eng.create_entity([&](entity e, engine& g) {
-        basic_sprite_setup(e, g, render_layers::ui, point<f32>(100, 500), size<f32>(64, 64), point<f32>(0, 0), size<f32>(1, 1), "button");
+        basic_sprite_setup(e, g, render_layers::ui, sprite_coords(100, 500), sprite_coords(64, 64), sprite_coords(0, 0), size<f32>(1, 1), "button");
         make_widget(e, g, eng.ui.root);
 
         c_mouseevent& on_click = g.ecs.add<c_mouseevent>(e);

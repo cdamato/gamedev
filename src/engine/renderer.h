@@ -10,8 +10,8 @@
 class renderer_base : no_copy, no_move {
 public:
     virtual ~renderer_base() = default;
-    virtual void set_viewport(size<u16>) = 0;
-    virtual void set_camera(point<f32>) = 0;
+    virtual void set_viewport(screen_coords) = 0;
+    virtual void set_camera(vec2d<f32>) = 0;
     virtual void clear_screen() = 0;
     virtual texture add_texture(std::string name) = 0;
 
@@ -40,8 +40,8 @@ public:
     void clear_screen();
     texture add_texture(std::string name) ;
     renderer_gl();
-    void set_viewport(size<u16>);
-    void set_camera(point<f32>);
+    void set_viewport(screen_coords);
+    void set_camera(vec2d<f32>);
 private:
     // PIMPL to avoid bringing shader class into the header.
     struct impl;
@@ -56,13 +56,13 @@ class renderer_software : public renderer_base {
 public:
     void clear_screen();
     texture add_texture(std::string name) ;
-    renderer_software(size<u16>);
-    void set_viewport(size<u16>);
-    void set_camera(point<f32>);
+    renderer_software(screen_coords);
+    void set_viewport(screen_coords);
+    void set_camera(vec2d<f32>);
     framebuffer& get_framebuffer() { return fb;}
 private:
     framebuffer fb;
-    point<f32> camera;
+    vec2d<f32> camera;
     size_t texture_counter = 0;
 
     void render_batch(texture, render_layers);

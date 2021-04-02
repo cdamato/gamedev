@@ -105,7 +105,7 @@ void c_display::rotate(f32 theta) {
     f32 s = sin(theta);
     f32 c = cos(theta);
     rect<f32> dimensions = get_dimensions();
-    point<f32> center = dimensions.center();
+    sprite_coords center = dimensions.center();
     for (auto& vert : _vertices) {
         f32 i = vert.pos.x - center.x;
         f32 j = vert.pos.y - center.y;
@@ -114,13 +114,13 @@ void c_display::rotate(f32 theta) {
     }
 }
 
-void sprite_data::set_pos(point<f32> pos, ::size<f32> size, size_t quad) {
+void sprite_data::set_pos(sprite_coords pos, sprite_coords size, size_t quad) {
     // Vertices are in order top left, top right, bottom right, and bottom left
     size_t index = (quad) * VERTICES_PER_QUAD;
     vertices[index].pos = pos;
-    vertices[index + 1].pos = point<f32>(pos.x + size.x, pos.y);
-    vertices[index + 2].pos = pos + point<f32>(size.x, size.y);
-    vertices[index + 3].pos = point<f32>(pos.x, pos.y + size.y);
+    vertices[index + 1].pos = sprite_coords(pos.x + size.x, pos.y);
+    vertices[index + 2].pos = pos + sprite_coords(size.x, size.y);
+    vertices[index + 3].pos = sprite_coords(pos.x, pos.y + size.y);
 }
 
 void sprite_data::set_uv(point<f32> pos, ::size<f32> size, size_t quad) {
@@ -132,20 +132,20 @@ void sprite_data::set_uv(point<f32> pos, ::size<f32> size, size_t quad) {
     vertices[index + 3].uv = point<f32>(pos.x, pos.y + size.y);
 }
 
-void c_display::move_to(point<f32> pos) {
-    point<f32> change = pos - _vertices[0].pos;
+void c_display::move_to(sprite_coords pos) {
+    sprite_coords change = pos - _vertices[0].pos;
     move_by(change);
 }
 
-void c_display::move_by(point<f32> change) {
+void c_display::move_by(sprite_coords change) {
     for (auto& vert : _vertices) {
         vert.pos += change;
     }
 }
 
-rect<f32> calc_dimensoins(vertex* vert_array, size_t begin, size_t end) {
-    point<f32> min(65535, 65535);
-    point<f32> max(0, 0);
+rect<f32> calc_dimensions(vertex* vert_array, size_t begin, size_t end) {
+    sprite_coords min(65535, 65535);
+    sprite_coords max(0, 0);
 
     for (size_t i = begin; i < end ; i++) {
         auto vertex = vert_array[i];
@@ -156,16 +156,16 @@ rect<f32> calc_dimensoins(vertex* vert_array, size_t begin, size_t end) {
         max.y = std::max(max.y, vertex.pos.y);
     }
 
-    point<f32> s = max - min;
-    return rect<f32>(min, size<f32>(s.x, s.y));
+    sprite_coords s = max - min;
+    return rect<f32>(min, sprite_coords(s.x, s.y));
 }
 
 rect<f32> c_display::get_dimensions() {
-    return calc_dimensoins(_vertices.data(), 0,  _vertices.size());
+    return calc_dimensions(_vertices.data(), 0,  _vertices.size());
 }
 
 rect<f32> sprite_data::get_dimensions() {
-    return calc_dimensoins(vertices, 0, size);
+    return calc_dimensions(vertices, 0, size);
 }
 /***************************/
 /*     ECS SYSTEM CODE     */
@@ -181,8 +181,8 @@ bool is_sprite_disabled(size_t i, c_collision& col) {
     return false;
 }
 
-std::vector<point<f32>> get_normals(c_display& spr, c_collision& col) {
-    std::vector<point<f32>> axes;
+std::vector<world_coords> get_normals(c_display& spr, c_collision& col) {
+    std::vector<world_coords> axes;
     size_t index = 0;
     for (size_t i = 0; i < spr.num_sprites(); i++) {
         if (is_sprite_disabled(i, col)) continue;
@@ -192,14 +192,14 @@ std::vector<point<f32>> get_normals(c_display& spr, c_collision& col) {
 
         for (size_t j = index; j != max_size; j ++) {
             size_t vert_index = j + 1 == max_size ? 0 : j + 1;
-            point<f32> edge = spr.vertices()[vert_index].pos - spr.vertices()[j].pos;
-            axes.push_back(point<f32>(-edge.y, edge.x));
+            world_coords edge = spr.vertices()[vert_index].pos - spr.vertices()[j].pos;
+            axes.push_back(world_coords(-edge.y, edge.x));
         }
     }
     return axes;
 }
 
-void project_shape(c_display& spr, c_collision& col,point<f32> normal, f32& min, f32& max) {
+void project_shape(c_display& spr, c_collision& col, world_coords normal, f32& min, f32& max) {
     size_t index = 0;
     for (size_t i = 0; i < spr.num_sprites(); i++) {
         if (is_sprite_disabled(i, col)) continue;
@@ -207,7 +207,7 @@ void project_shape(c_display& spr, c_collision& col,point<f32> normal, f32& min,
         index = spr.sprites(i).start;
 
         for (size_t j = index; j != index + (spr.sprites(i).size * 4); j ++) {
-            point<f32> pos = spr.vertices()[j].pos;
+            world_coords pos = spr.vertices()[j].pos;
             f32 projection = (pos.x * normal.x) + (pos.y * normal.y);
             min = std::min(min, projection);
             max = std::max(max, projection);
@@ -215,7 +215,7 @@ void project_shape(c_display& spr, c_collision& col,point<f32> normal, f32& min,
     }
 }
 
-bool test_normalset(c_display& a_spr, c_collision& a_col, c_display& b_spr, c_collision& b_col, std::vector<point<f32>>& normals) {
+bool test_normalset(c_display& a_spr, c_collision& a_col, c_display& b_spr, c_collision& b_col, std::vector<world_coords>& normals) {
     for (auto normal : normals) {
         f32 a_min = 65535, a_max = 0, b_min = 65535, b_max = 0;
 
@@ -232,14 +232,14 @@ bool test_normalset(c_display& a_spr, c_collision& a_col, c_display& b_spr, c_co
 }
 
 bool test_collision(c_display& a, c_collision& a_col, c_display& b, c_collision& b_col) {
-    std::vector<point<f32>> a_axes = get_normals(a, a_col);
-    std::vector<point<f32>> b_axes = get_normals(b, b_col);
+    std::vector<world_coords> a_axes = get_normals(a, a_col);
+    std::vector<world_coords> b_axes = get_normals(b, b_col);
 
     return test_normalset(a, a_col, b, b_col, a_axes) || test_normalset(a, a_col, b, b_col, b_axes);
 }
 
-tile_data get_tiledata(c_mapdata& data, point<f32> pos) {
-    point<f32> trunc_pos(trunc(pos.x), trunc(pos.y));
+tile_data get_tiledata(c_mapdata& data, world_coords pos) {
+    world_coords trunc_pos(trunc(pos.x), trunc(pos.y));
 
     int tile_index =  trunc_pos.x + ( trunc_pos.y * data.size.x);
     return data.tiledata_lookup[data.map[tile_index]];
@@ -250,12 +250,12 @@ bool map_collision (c_display& spr, c_mapdata& data, u8 type) {
     for (auto vertex : spr.vertices()) {
         // get the decimal part, then divide it by 0.50 to determine which half it's in, then floor to get an int
 
-        point<f32> pos = vertex.pos;
+        world_coords pos = vertex.pos;
         if ( pos.x < 0 ||  pos.y < 0) return true;
 
 
         auto collision_data = get_tiledata(data, pos);
-        point<f32> trunc_pos(trunc(pos.x), trunc(pos.y));
+        world_coords trunc_pos(trunc(pos.x), trunc(pos.y));
         int quadrant_x = (pos.x - trunc_pos.x) > 0.50f ? 1 : 0 ;
         int quadrant_y = (pos.y - trunc_pos.y) > 0.50f ? 1 : 0;
         int subquad_index = quadrant_x + (quadrant_y * 2);
@@ -358,7 +358,7 @@ void s_health::update_healthbars(pool<c_healthbar>& healthbars, pool<c_health>& 
     data.z_index = 2;
 
     size<f32> slice_size(1, 1.0f / healthbars.size());
-    point<f32> pos(1, 0);
+    sprite_coords pos(1, 0);
 
     for (auto& healthbar : healthbars) {
         c_health& health = healths.get(healthbar.ref);
@@ -367,7 +367,7 @@ void s_health::update_healthbars(pool<c_healthbar>& healthbars, pool<c_health>& 
         c_display& spr = sprites.get(healthbar.ref);
 
         if (healthbar.sprite_index == 0) {
-            point<f32> tl = spr.get_dimensions().bottom_left() + point<f32>(0, 0.1);
+            sprite_coords tl = spr.get_dimensions().bottom_left() + sprite_coords(0, 0.1);
             u32 index = spr.add_sprite(1, render_layers::sprites);
             healthbar.sprite_index = index;
             spr.sprites(index).tex = tex;
@@ -397,7 +397,7 @@ bool test_proximity_collision(c_proximity& c, c_display& spr) {
     if(c.shape == c_proximity::shape::rectangle)
         return AABB_collision(rect<f32>(c.origin, c.radii), spr.sprites(0).get_dimensions());
     if(c.shape == c_proximity::shape::elipse) {
-        point<f32> p = spr.sprites(0).get_dimensions().center();
+        world_coords p = spr.sprites(0).get_dimensions().center();
         f32 left_side = pow(p.x - c.origin.x, 2) / pow(c.radii.x, 2);
         f32 right_side = pow(p.y - c.origin.y, 2) / pow(c.radii.y, 2);
         return left_side + right_side <= 1;

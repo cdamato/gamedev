@@ -29,7 +29,7 @@ public:
 	void set_active(bool state) { flags.set(event_flags::active_bit, state); }
 	bool active_state() const { return flags.test(event_flags::active_bit); }
 
-	point<f32> pos {};
+	screen_coords pos {};
 	u32 ID;
 };
 

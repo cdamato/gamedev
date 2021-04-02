@@ -15,8 +15,8 @@ public:
 	entity cursor = 65535;
 	entity active_interact = 65535;
 
-	size<u16> window_size;
-	point<f32> last_position;
+	screen_coords window_size;
+	screen_coords last_position;
 
 	timer hover_timer;
 	bool hover_active = false;
@@ -32,7 +32,7 @@ enum window_flags {
 class settings_manager {
 public:
 	settings_manager();
-	size<u16> resolution;
+	screen_coords resolution;
 	std::bitset<8> flags;
 	std::unordered_map<u8, command> bindings;
 
@@ -41,14 +41,14 @@ public:
 
 struct window_impl {
     std::function<void(event&)> event_callback;
-    std::function<void(size<u16>)> resize_callback;
+    std::function<void(screen_coords)> resize_callback;
     bool renderer_busy = false;
     bool fullscreen = false;
-    size<u16> resolution;
+    screen_coords resolution;
 
     virtual bool poll_events() = 0;
     virtual void swap_buffers(renderer_base&) = 0;
-    virtual size<u16> get_drawable_resolution() = 0;
+    virtual screen_coords get_drawable_resolution() = 0;
     virtual ~window_impl() {}
 };
 
@@ -62,9 +62,9 @@ public:
 
 	void set_fullscreen(bool);
 	void set_vsync(bool);
-	void set_resolution(size<u16>);
+	void set_resolution(screen_coords);
     void set_event_callback(std::function<void(event&)> callback) { window_context.get()->event_callback = callback; }
-    void set_resize_callback(std::function<void(size<u16>)> callback) { window_context.get()->resize_callback = callback; }
+    void set_resize_callback(std::function<void(screen_coords)> callback) { window_context.get()->resize_callback = callback; }
 private:
     std::unique_ptr<window_impl> window_context;
 };
@@ -107,7 +107,7 @@ public:
 	entity map_id() { return ecs._map_id; }
 
 	bool in_dungeon = false;
-    point<f32> offset = point<f32>(0, 0);
+	world_coords offset = world_coords(0, 0);
     std::bitset<8> command_states;
 private:
     std::unique_ptr<renderer_base> _renderer;
@@ -115,6 +115,6 @@ private:
 
 
 
-void inventory_init(entity, engine&, entity, c_inventory& inv, point<u16>);
+void inventory_init(entity, engine&, entity, c_inventory& inv, screen_coords);
 
 #endif //ENGINE_H

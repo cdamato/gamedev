@@ -8,7 +8,7 @@
 
 
 void egen_bullet(entity e, engine& game, std::string texname,
-		size<f32> dimensions, point<f32> speed, point<f32> source, point<f32> dest,	collision_flags team)
+				 world_coords dimensions, world_coords speed, world_coords source, world_coords dest, collision_flags team)
 {
 
 	c_display& spr = game.ecs.add<c_display>(e);
@@ -37,42 +37,26 @@ void egen_bullet(entity e, engine& game, std::string texname,
 	};
 
 
-	point<f32> delta(dest.x - source.x, dest.y - source.y);
+	world_coords delta(dest.x - source.x, dest.y - source.y);
 	float hypotLen = sqrt(pow(delta.x, 2) + pow(delta.y, 2));
 
 
 	c_velocity& v = game.ecs.add<c_velocity>(e);
-	v.delta = point<f32>((delta.x / hypotLen) / 8, (delta.y / hypotLen) / 8);
+	v.delta = world_coords((delta.x / hypotLen) / 8, (delta.y / hypotLen) / 8);
 
 }
 
 
 
-/*
-void egen_crate(entity e, c_display& spr, c_collision& c, c_health& h, point<f32> pos)
-{
-	spr.add_sprite(1, render_layers::sprites);
-	spr.set_pos(pos, size<f32>(1, 1), 0, 0);
-	spr.set_uv(point<f32>(0, 0), size<f32>(1.0f, 1.0f), 0, 0);
-
-	//c.p_id = e.ID();
-	c.set_team_detector(collision_flags::ally);
-	c.set_team_detector(collision_flags::enemy);
-
-
-	h.health = 100;
-}*/
-
-
-void egen_enemy(entity e, engine& game, point<f32> pos)
+void egen_enemy(entity e, engine& game, world_coords pos)
 {
     game.ecs.add<c_enemy>(e);
 
 	c_display& spr = game.ecs.add<c_display>(e);
 	spr.add_sprite(1, render_layers::sprites);
 	spr.sprites(0).tex = game.renderer().get_texture("player");
-	spr.sprites(0).set_pos(pos, size<f32>(1, 1), 0);
- 	spr.sprites(0).set_uv( point<f32>(0, 0), size<f32>(1, 1), 0);
+	spr.sprites(0).set_pos(pos, sprite_coords(1, 1), 0);
+ 	spr.sprites(0).set_uv(point<f32>(0, 0), size<f32>(1, 1), 0);
 
 
 	c_collision& c = game.ecs.add<c_collision>(e);
@@ -101,8 +85,8 @@ void setup_player(engine& game)
 
 	spr.sprites(0).tex = game.renderer().get_texture("player");
 
-	spr.sprites(0).set_pos(point<f32>(9, 9), size<f32>(1, 1), 0);
-	spr.sprites(0).set_uv( point<f32>(0, 0), size<f32>(1, 1), 0);
+	spr.sprites(0).set_pos(sprite_coords(9, 9), sprite_coords(1, 1), 0);
+	spr.sprites(0).set_uv(point<f32>(0, 0), size<f32>(1, 1), 0);
 
 	game.ecs.add<c_velocity>(e);
 	game.ecs.add<c_weapon_pool>(e);
@@ -127,7 +111,7 @@ void setup_player(engine& game)
 		if(ID == game.map_id()) {
 			auto& velocity = game.ecs.get<c_velocity>(e);
 			c_display& spr2 = game.ecs.get<c_display>(e);
-			spr2.move_by(point<f32>(0,0 ) - velocity.delta);
+			spr2.move_by(sprite_coords(0, 0) - velocity.delta);
 			printf("player collides with wall \n");
 		}
 	};
@@ -162,7 +146,7 @@ void make_parent(entity a, entity b, engine& game) {
 
 
 
-void basic_sprite_setup(entity e, engine& g, render_layers layer, point<f32> origin, size<f32> pos_size, point<f32> uv_origin, size<f32> uv_size, std::string texname) {
+void basic_sprite_setup(entity e, engine& g, render_layers layer, sprite_coords origin, sprite_coords pos_size, point<f32> uv_origin, size<f32> uv_size, std::string texname) {
     c_display& spr = g.ecs.add<c_display>(e);
     spr.add_sprite(1, layer);
     spr.sprites(0).set_pos(origin, pos_size, 0);
@@ -224,7 +208,7 @@ bool selection_keypress(entity e, const event& ev, engine& g) {
 		event e;
 		e.set_active(true);
 		e.set_type(event_flags::cursor_moved);
-		e.pos = point<f32>(x_pos, y_pos);
+		e.pos = screen_coords(x_pos, y_pos);
 		cve.run_event(e);
 
 	}
@@ -234,20 +218,20 @@ bool selection_keypress(entity e, const event& ev, engine& g) {
 
 
 rect<f32> calc_size_percentages(rect<f32> parent, rect<f32> sizes ) {
-	point<f32> p_origin = parent.origin;
-	size<f32> p_size = parent.size;
+	sprite_coords p_origin = parent.origin;
+	sprite_coords p_size = parent.size;
 
-	point<f32> new_origin(((sizes.origin.x / 100.0f) * p_size.x) + p_origin.x,
+	sprite_coords new_origin(((sizes.origin.x / 100.0f) * p_size.x) + p_origin.x,
 						((sizes.origin.y / 100.0f) * p_size.y) + p_origin.y);
-	size<f32> new_size((p_size.x / 100) * sizes.size.x, ( p_size.y / 100) * sizes.size.y);
+	sprite_coords new_size((p_size.x / 100) * sizes.size.x, ( p_size.y / 100) * sizes.size.y);
 
 	return rect<f32>(new_origin, new_size);
 }
 
 
 bool follower_moveevent(entity e, const event& ev, c_display& spr) {
-	size<f32> dim = spr.get_dimensions().size;
-	point<f32> p (ev.pos.x - (dim.x / 2), ev.pos.y - (dim.y / 2));
+	sprite_coords dim = spr.get_dimensions().size;
+	sprite_coords p (ev.pos.x - (dim.x / 2), ev.pos.y - (dim.y / 2));
 	spr.move_to(p);
 	return true;
 }

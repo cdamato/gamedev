@@ -321,12 +321,12 @@ renderer_gl::renderer_gl() {
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), (void*) 0);
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), (void*) (sizeof(point<f32>)));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), (void*) (sizeof(sprite_coords)));
 
     mapped_vertex_buffer = map_buffer();
 }
 
-void renderer_gl::set_viewport(size<u16> screen_size) {
+void renderer_gl::set_viewport(screen_coords screen_size) {
     glViewport(0, 0, screen_size.x, screen_size.y);
     data->viewport = size<f32>(128.0f / screen_size.x, 128.0f / screen_size.y);
     data->get_shader(render_layers::text).update_uniform("viewport", 2.0f / screen_size.x, 2.0f / screen_size.y);
@@ -336,7 +336,7 @@ void renderer_gl::set_viewport(size<u16> screen_size) {
     data->get_shader(render_layers::sprites).update_uniform("viewMatrix", data->camera.data());
 }
 
-void renderer_gl::set_camera(point<f32> delta) {
+void renderer_gl::set_camera(vec2d<f32> delta) {
     data->camera[12] = -((data->viewport.x) * delta.x);
     data->camera[13] = (data->viewport.y) * delta.y;
     data->get_shader(render_layers::sprites).update_uniform("viewMatrix", data->camera.data());
@@ -387,7 +387,7 @@ texture renderer_software::add_texture(std::string name) {
     return tex;
 }
 
-renderer_software::renderer_software(size<u16> resolution_in) {
+renderer_software::renderer_software(screen_coords resolution_in) {
     //resolution = resolution_in;
     load_textures();
     mapped_vertex_buffer = new vertex[NUM_QUADS  * VERTICES_PER_QUAD];
@@ -419,12 +419,12 @@ void renderer_software::process_texture_data(texture tex_id) {
     std::swap(tex_data.image_data, upscaled_tex);
 }
 
-void renderer_software::set_viewport(size<u16> screen_size) {
+void renderer_software::set_viewport(screen_coords screen_size) {
     //resolution = screen_size;
 }
 
 
-void renderer_software::set_camera(point<f32> camera_in) {
+void renderer_software::set_camera(vec2d<f32> camera_in) {
     camera = camera_in;
 }
 
@@ -476,7 +476,7 @@ void renderer_software::render_batch(texture current_tex, render_layers layer) {
         auto tl_vert = transpose_vertex(matrix, mapped_vertex_buffer[i]);
         auto br_vert = transpose_vertex(matrix, mapped_vertex_buffer[i + 2]);
 
-        rect<f32> sprite_rect(tl_vert.pos, br_vert.pos);
+        rect<f32> sprite_rect(tl_vert.pos, tl_vert.pos - br_vert.pos);
         if (!AABB_collision(frame, sprite_rect)) continue;
 
         tl_vert.pos = point<f32>(std::max(0.0f, tl_vert.pos.x), std::max(0.0f, tl_vert.pos.y));

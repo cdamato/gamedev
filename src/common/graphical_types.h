@@ -4,12 +4,6 @@
 #include "basic_types.h"
 #include <vector>
 
-using entity = u32;
-using texture = u32;
-constexpr static entity null_entity = 65535;
-constexpr static texture null_texture = 65535;
-
-
 struct color {
     u8 r, g, b, a;
     color() = default;
@@ -46,12 +40,13 @@ using image = image_wrapper<std::vector<u8>>;
 using framebuffer = image_wrapper<u8*>;
 
 struct vertex {
-    point<f32> pos;
+    sprite_coords pos;
     point<f32> uv;
 };
 
 struct texture_data {
-    f32 z_index;
+    texture id;
+    sprite_coord_t z_index;
     image image_data;
     size<u16> regions;
     int scale_factor;
@@ -70,14 +65,14 @@ struct sprite_data {
     texture tex = null_texture;
     u16 size = 0;
     u16 start = 0;
-    vertex* vertices;
+    vertex* vertices = nullptr;
     render_layers layer;
 
     inline bool operator < (const sprite_data& rhs ) const { return tex < rhs.tex; }
 
     rect<f32> get_dimensions();
-    void set_uv(point<f32> pos, ::size<f32> size, size_t start);
-    void set_pos(point<f32>, ::size<f32>, size_t);
+    void set_pos(sprite_coords, sprite_coords, size_t);
+    void set_uv(point<f32>, ::size<f32>, size_t);
 };
 
 

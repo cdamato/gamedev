@@ -9,21 +9,21 @@ class entity_manager;
 
 class texture_generator {
 public:
-    void set_texture(texture in) { tex = in; }
-    texture get_texture() { return tex; }
-    texture_data& get_data() { return data;  }
+	void set_texture(texture in) { tex = in; }
+	texture get_texture() { return tex; }
+	texture_data& get_data() { return data;  }
 protected:
-    texture_data data;
-    size_t last_atlassize = 0;
-    texture tex;
-    bool regenerate = true;
+	texture_data data;
+	size_t last_atlassize = 0;
+	texture tex;
+	bool regenerate = true;
 };
 
 struct s_shooting {
-	using bullet_func = std::function<void(std::string, size<f32>, point<f32>, point<f32>, point<f32>, collision_flags)>;
+	using bullet_func = std::function<void(std::string, world_coords, world_coords, world_coords, world_coords, collision_flags)>;
 	struct bullet {
-		size<f32> dimensions;
-		point<f32> speed;
+		world_coords dimensions;
+		world_coords speed;
 		std::string tex;
 	};
 

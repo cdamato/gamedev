@@ -78,7 +78,7 @@ enum directions {
 	ordinals = 1 << NE | 1 << NW | 1 <<SE | 1 <<SW,
 };
 
-void read_neighbors(std::vector<u8>& tiles, int neighbors[8], int x_in, int y_in, size<u16> map_size) {
+void read_neighbors(std::vector<u8>& tiles, int neighbors[8], int x_in, int y_in, world_coords map_size) {
 	//neighbors = {0};
 
 	int start_x = std::max(0, x_in - 1);
@@ -95,7 +95,7 @@ void read_neighbors(std::vector<u8>& tiles, int neighbors[8], int x_in, int y_in
 }
 
 
-void set_map(engine& game, size<u16> dimensions, std::vector<u8> tiles) {
+void set_map(engine& game, world_coords dimensions, std::vector<u8> tiles) {
 
 	f32 tex_w = 1.0f / 5.0f;
 	f32 tex_h = 1.0f / 3.0f;
@@ -119,7 +119,7 @@ void set_map(engine& game, size<u16> dimensions, std::vector<u8> tiles) {
 	auto write_tile = [&] (f32 pos_x, f32 pos_y, f32 tex_x, f32 tex_y) {
 		tex_x *= tex_w;
 		tex_y *= tex_h;
-		spr.sprites(0).set_pos(point<f32>(pos_x, pos_y), size<f32>(1, 1), index);
+		spr.sprites(0).set_pos(sprite_coords(pos_x, pos_y), sprite_coords(1, 1), index);
 		spr.sprites(0).set_uv(point<f32>(tex_x, tex_y), size<f32>(tex_w, tex_h), index);
 		index++;
 
@@ -184,22 +184,22 @@ void set_map(engine& game, size<u16> dimensions, std::vector<u8> tiles) {
 	mapdata.size = dimensions;
 }
 
-void gen_obstaclething(entity e, engine& game, point<f32> pos) {
+void gen_obstaclething(entity e, engine& game, world_coords pos) {
 
 	c_display& spr = game.ecs.add<c_display>(e);
 	//spr->init(1);
 	spr.add_sprite(1, render_layers::sprites);
 	spr.sprites(0).tex = game.renderer().get_texture("crate");
 
-	spr.sprites(0).set_pos(pos, size<f32>(1, 1), 0);
+	spr.sprites(0).set_pos(pos, sprite_coords(1, 1), 0);
 	spr.sprites(0).set_uv(point<f32>(0, 0), size<f32>(1.0f, 1.0f), 0);
 }
 
-std::vector<u8> generate_map(size<u16> map_size) {
+std::vector<u8> generate_map(world_coords map_size) {
 
 	PerlinNoise pnr(mt_random(0, 65535));
 
-	map_size = size<u16>(32, 32);
+	map_size = size<f32>(32, 32);
 
 	f32 min = 1;
 	f32 max = 0;

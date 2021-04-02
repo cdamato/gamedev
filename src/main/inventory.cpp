@@ -6,19 +6,19 @@
 void transfer_item(entity , engine& g, c_inventory&);
 // Given a point, this function returns the grid square it resides in
 point<u16> get_gridsquare(c_display& spr, point<f32> in) {
-	point<f32> tl = spr.sprites(0).get_dimensions().origin;
+    sprite_coords tl = spr.sprites(0).get_dimensions().origin;
 	return point<u16>((in.x - tl.x ) / 64.0f, (in.y- tl.y) / 64.0f);
 }
 
 // Given a gridsquare, this function returns the top left coordinate of the grid square it resides in
-point<f32> snap_to_grid(c_display& spr, point<u16> in) {
-	point<f32> tl = spr.sprites(0).get_dimensions().origin;
-	return point<f32>(in.x * 64 + tl.x, in.y * 64 + tl.y);
+sprite_coords snap_to_grid(c_display& spr, point<u16> in) {
+    sprite_coords tl = spr.sprites(0).get_dimensions().origin;
+	return sprite_coords(in.x * 64 + tl.x, in.y * 64 + tl.y);
 }
 
 
 // Set the inventory to be the active cursor widget, and put the selection box in place of the clicked-on element.
-void pickup_item(entity e, point<f32> box_snap_point, engine& g) {
+void pickup_item(entity e, sprite_coords box_snap_point, engine& g) {
     c_selection &select = g.ecs.get<c_selection>(e);
     c_display& spr = g.ecs.get<c_display>(e);
     g.ui.cursor = e;
@@ -28,18 +28,18 @@ void pickup_item(entity e, point<f32> box_snap_point, engine& g) {
     spr.sprites(select.box_index).layer = render_layers::ui;
 }
 
-void write_item_to_slot(size_t index, point<f32> pos, entity e, item item_in, engine& g) {
+void write_item_to_slot(size_t index, sprite_coords pos, entity e, item item_in, engine& g) {
     c_display& spr = g.ecs.get<c_display>(e);
     c_selection &select = g.ecs.get<c_selection>(e);
 
-    size<f32> item_size = spr.sprites(select.box_index).get_dimensions().size;
+    sprite_coords item_size = spr.sprites(select.box_index).get_dimensions().size;
     spr.sprites(1).set_pos(pos, item_size, index);
 
     size<f32> subtexture(1.0f / 2, 1);
-    spr.sprites(1).set_uv( point<f32>(subtexture.x * item_in.ID, 0), subtexture, index);
+    spr.sprites(1).set_uv(point<f32>(subtexture.x * item_in.ID, 0), subtexture, index);
 }
 
-void empty_slot(size_t index, point<f32> pos, entity e, engine& g) {
+void empty_slot(size_t index, sprite_coords pos, entity e, engine& g) {
     c_selection &select = g.ecs.get<c_selection>(e);
     c_display& spr = g.ecs.get<c_display>(e);
 
@@ -98,8 +98,8 @@ bool inventory_motion(entity e, const event& ev, engine& game) {
     c_selection& select = game.ecs.get<c_selection>(e);
 
     if (game.ui.cursor == e) {
-        size<f32> dim = spr.sprites(select.box_index).get_dimensions().size;
-        point<f32> p (ev.pos.x - (dim.x / 2), ev.pos.y - (dim.y / 2));
+        sprite_coords dim = spr.sprites(select.box_index).get_dimensions().size;
+        sprite_coords p (ev.pos.x - (dim.x / 2), ev.pos.y - (dim.y / 2));
 
         auto dimensions = spr.sprites(select.box_index).get_dimensions().origin;
         point<u16> box_point = get_gridsquare(spr, dimensions);
@@ -115,7 +115,9 @@ bool inventory_motion(entity e, const event& ev, engine& game) {
 
 	if (ev.active_state() == false) return true;
 
-	active = get_gridsquare(spr, ev.pos);
+	// no idea what's going on here.
+	point<f32> bruh = ev.pos.to<f32>();
+	active = get_gridsquare(spr, bruh);
 	if (active.x >= select.grid_size.x || active.y >= select.grid_size.y) return true;
 
 	index = active.x + (active.y * select.grid_size.x);
@@ -125,7 +127,7 @@ bool inventory_motion(entity e, const event& ev, engine& game) {
 	return true;
 }
 
-void inventory_init(entity e, engine& g, entity parent, c_inventory& inv, point<u16> origin) {
+void inventory_init(entity e, engine& g, entity parent, c_inventory& inv, screen_coords origin) {
 	g.ui.focus = e;
     g.ecs.add<c_widget>(e);
 	make_parent(parent, e, g);
@@ -136,9 +138,9 @@ void inventory_init(entity e, engine& g, entity parent, c_inventory& inv, point<
 	g.ecs.add<c_keyevent>(e).add_event(selection_keypress, g);
 
 	select.grid_size = size<u16>(9, 4);
-	size<f32> element_size(64, 64);
+	sprite_coords element_size(64, 64);
 	rect<f32> dim(origin.to<f32>(),
-			size<f32>(select.grid_size.x * element_size.x, select.grid_size.y * element_size.y));
+               sprite_coords(select.grid_size.x * element_size.x, select.grid_size.y * element_size.y));
 
 	int num_grid_elements = select.grid_size.x * select.grid_size.y;
 	c_display& spr = g.ecs.add<c_display>(e);
@@ -150,13 +152,13 @@ void inventory_init(entity e, engine& g, entity parent, c_inventory& inv, point<
 
 
     select.box_index = spr.add_sprite(1, render_layers::null);
-    spr.sprites(select.box_index).set_pos(point<f32>(0, 0), element_size, 0);
+    spr.sprites(select.box_index).set_pos(sprite_coords(0, 0), element_size, 0);
     spr.sprites(select.box_index).set_uv(point<f32>(0.5, 0), size<f32>(0.5, 1), 0);
     spr.sprites(select.box_index).tex = g.renderer().get_texture("highlight");
 
 
 	int index = 0;
-	point<f32> pos = origin.to<f32>();
+	sprite_coords pos = origin.to<f32>();
 	for (u16 y = 0; y < select.grid_size.y; y++) {
 		for (u16 x = 0; x < select.grid_size.x; x++) {
 			spr.sprites(0).set_pos(pos, element_size, index);
@@ -225,7 +227,7 @@ void transfer_item(entity e, engine& g, c_inventory& b_inv) {
 void inv_transfer_init(entity e, engine& g, c_inventory& storage_inv) {
     g.ecs.add<c_widget>(e);
     g.command_states.set(command::toggle_inventory, true);
-    g.create_entity(inventory_init, e, g.ecs.get<c_inventory>(g.player_id()), point<u16>(100, 100));
-    g.create_entity(inventory_init, e, storage_inv, point<u16>(100, 400));
+    g.create_entity(inventory_init, e, g.ecs.get<c_inventory>(g.player_id()), screen_coords(100, 100));
+    g.create_entity(inventory_init, e, storage_inv, screen_coords(100, 400));
     g.ui.focus = e;
 }
