@@ -213,12 +213,16 @@ engine::engine()  : settings(), window(settings){
     printf("Window Initialized\n");
     window.set_event_callback([this](event& ev) { process_event(ev, *this); });
     window.set_resize_callback([this](screen_coords size) { renderer().set_viewport(size); });
-
+#ifdef OPENGL
     if (settings.flags.test(window_flags::use_software_render)) {
         _renderer = std::unique_ptr<renderer_base>(new renderer_software(settings.resolution));
     } else {
         _renderer = std::unique_ptr<renderer_base>(new renderer_gl);
     }
+#else
+    _renderer = std::unique_ptr<renderer_base>(new renderer_software(settings.resolution));
+#endif //OPENGL
+
     ecs.systems.shooting.bullet_types.push_back(s_shooting::bullet{world_coords(0.3, 0.6), world_coords(8, 8), "bullet"});
     ecs.systems.shooting.shoot = [this] (std::string s, world_coords d, world_coords v, world_coords o, world_coords t, collision_flags a) {
         create_entity(egen_bullet, s, d, v, o, t, a);

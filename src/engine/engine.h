@@ -44,6 +44,7 @@ struct window_impl {
     std::function<void(screen_coords)> resize_callback;
     bool renderer_busy = false;
     bool fullscreen = false;
+	bool update_resolution = true; // Update resolution internally on the next tick
     screen_coords resolution;
 
     virtual bool poll_events() = 0;
@@ -62,7 +63,6 @@ public:
 
 	void set_fullscreen(bool);
 	void set_vsync(bool);
-	void set_resolution(screen_coords);
     void set_event_callback(std::function<void(event&)> callback) { window_context.get()->event_callback = callback; }
     void set_resize_callback(std::function<void(screen_coords)> callback) { window_context.get()->resize_callback = callback; }
 private:

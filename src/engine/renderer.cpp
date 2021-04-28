@@ -2,7 +2,6 @@
 #include <common/parser.h>
 #include <GL/glew.h>
 #include <assert.h>
-#include <immintrin.h>
 #include "renderer.h"
 
 static constexpr unsigned VERTICES_PER_QUAD = 4;
@@ -93,7 +92,7 @@ void renderer_base::load_textures() {
 
 
 
-
+#ifdef OPENGL
 
 
 
@@ -361,10 +360,7 @@ void renderer_gl::process_texture_data(texture tex) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
 }
 
-
-
-
-
+#endif //OPENGL
 
 
 
@@ -435,8 +431,8 @@ vertex transpose_vertex(std::array<f32, 4> matrix, vertex vert) {
     return vertex {new_vertex, vert.uv};
 }
 
-
-
+#ifdef SSE
+#include <immintrin.h>
 // Utilizes SSE intrinsics to achieve non-temporal writes. to remove a bottleneck created by memcpy.
 void alt_memcpy(void* data, void* src, std::size_t bytes)
 {
@@ -454,7 +450,14 @@ void alt_memcpy(void* data, void* src, std::size_t bytes)
         _mm_stream_ps(&vec_pointer[12], src_pointer[3]);
     }
 }
+#else
 
+// A fallback passthrough function to regular memcpy
+void alt_memcpy(void* data, void* src, std::size_t bytes)
+{
+    memcpy(data, src, bytes);
+}
+#endif //SSE
 
 void renderer_software::render_batch(texture current_tex, render_layers layer) {
     std::array<f32, 4> matrix;

@@ -1,24 +1,39 @@
 SOURCE_DIRS := src/common/ src/ecs/ src/engine/ src/renderer/ src/main/
 TEST_DIRS := tests/
 
+CPP_DEFINES :=
+LINUX_LIBS := Xext freetype X11 GL
+AMD64_FLAGS := -Darch_amd64
+DEBUG_FLAGS := -Wno-unused-parameter -fsanitize=undefined -fsanitize=address -g3 -Wall -Wextra
+
+ifneq ($(OPENGL),false)
+	LINUX_LIBS := $(LINUX_LIBS) GLEW
+	CPP_DEFINES := $(CPP_DEFINES) -DOPENGL
+endif
+
+ifneq ($(USE_SSE), false)
+	AMD64_FLAGS := $(AMD64_FLAGS) -DSSE
+endif
 
 Windows:
-	@mkdir -p "Build/Windows"
-	$(MAKE) -f make_impl CXX="x86_64-w64-mingw32-g++-posix" \
-	BUILD_DIR=Build/Windows SOURCE_DIRECTORIES="$(SOURCE_DIRS) src/" INCLUDE_DIR="win32_libraries/include/" LIBRARY_DIR=win32_libraries/lib/ \
-	LIBS="opengl32 gdi32 glew32" LDFLAGS_IN="-static -static-libstdc++ -static-libgcc" CXXFLAGS_IN="-mwindows -g3 -municode" \
+	@mkdir -p "Build/Windows"AMD64_FLAGS
+	$(MAKE) -f make_impl CXX="x86_64-w64-mingw32-g++-posix" \ BUILD_DIR=Build/Windows SOURCE_DIRECTORIES="$(SOURCE_DIRS) src/" INCLUDE_DIR="win32_libraries/include/" LIBRARY_DIR=win32_libraries/lib/ \
+	LIBS="opengl32 gdi32 glew32" LDFLAGS_IN="-static -static-libstdc++ -static-libgcc" CXXFLAGS_IN="$(CPP_DEFINES) -mwindows -g3 -municode" USE_DEPFLAGS=false
 	  
-Debug: 
+Debug:
 	@mkdir -p "Build/Debug"
-	$(MAKE) -f make_impl \
-	BUILD_DIR=Build/Debug \	SOURCE_DIRECTORIES="$(SOURCE_DIRS) src/" LIBRARY_DIR=/usr/local/lib \
-	LIBS="asan Xext ubsan freetype GLEW GL X11" CXXFLAGS_IN="-Wno-unused-parameter -fsanitize=undefined -fsanitize=address -g3 -Wall -Wextra" DEPFLAGS_IN="-M -MMD -MP"
-	  
-Release:
-	@mkdir -p "Build/Release"
-	$(MAKE) -f make_impl \
-	BUILD_DIR=Build/Release SOURCE_DIRECTORIES="$(SOURCE_DIRS) src/"  LIBRARY_DIR=/usr/local/lib \
-	LIBS="freetype Xext GLEW GL X11" CXXFLAGS_IN="-O3 -g3" DEPFLAGS_IN="-M -MMD -MP"
+	$(MAKE) -f make_impl BUILD_DIR=Build/Debug SOURCE_DIRECTORIES="$(SOURCE_DIRS) src/" LIBRARY_DIR=/usr/local/lib \
+	LIBS=" asan ubsan $(LINUX_LIBS)" LDFLAGS_IN="$(AMD64_FLAGS)" CXXFLAGS_IN="$(DEBUG_FLAGS) $(AMD64_FLAGS) $(CPP_DEFINES)"
+
+AMD64:
+	@mkdir -p "Build/AMD64"
+	$(MAKE) -f make_impl CXX="x86_64-linux-gnu-g++" BUILD_DIR=Build/AMD64 SOURCE_DIRECTORIES="$(SOURCE_DIRS) src/"  LIBRARY_DIR=/usr/local/lib \
+	LIBS="$(LINUX_LIBS)" LDFLAGS_IN="$(AMD64_FLAGS)" CXXFLAGS_IN="-O3 -g3 $(AMD64_FLAGS) $(CPP_DEFINES)"
+
+ARM64:
+	@mkdir -p "Build/ARM64"
+	$(MAKE) -f make_impl CXX="aarch64-linux-gnu-g++" BUILD_DIR=Build/ARM64 SOURCE_DIRECTORIES="$(SOURCE_DIRS) src/"  LIBRARY_DIR=/usr/local/lib \
+	LIBS="$(LINUX_LIBS)" LDFLAGS_IN="$(ARM64_FLAGS)" CXXFLAGS_IN="-O3 -g3 $(ARM64_FLAGS) $(CPP_DEFINES)"
 
 Coverage:
 	@mkdir -p "Build/Unit_Tests"
@@ -31,4 +46,4 @@ clean:
 	rm -rf coverage_docs
 	rm -rf test_suite
 
-.PHONY: Windows Debug Release Coverage_Docs clean
+.PHONY: Windows Debug AMD64 ARM64 Coverage clean

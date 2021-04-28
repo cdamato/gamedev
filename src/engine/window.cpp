@@ -1,7 +1,10 @@
 #include <common/parser.h>
 #include <fstream>
 #include "engine.h"
+
+#ifdef SSE
 #include <immintrin.h>
+#endif
 
 #ifdef __linux__
 #include <X11/Xlib.h>
@@ -18,11 +21,13 @@ struct x11_window : public window_impl{
 	Window                  win;
 	XWindowAttributes       gwa;
 
+	virtual ~x11_window() = default;
 	x11_window(screen_coords resolution);
     screen_coords get_drawable_resolution() ;
 	bool poll_events();
 };
 
+#ifdef OPENGL
 struct gl_backend : public x11_window {
 	GLXContext glc;
     gl_backend(screen_coords resolution) : x11_window(resolution) {
@@ -32,14 +37,23 @@ struct gl_backend : public x11_window {
     void swap_buffers(renderer_base& r) {
 	    glXSwapBuffers(dpy, win);
 	}
+	void set_resolution(screen_coords coords) {
+        glViewport(0, 0, coords.x, coords.y);
+    }
 };
+#endif //OPENGL
 
 struct software_backend : public x11_window {
     XImage* image;
   	GC                    gc;
     XShmSegmentInfo shminfo;
   	XGCValues             values;
+    bool regen = true;
 
+    // Note: this code has problems, as does the windows version.
+    // I believe the buffer needs to be recreated upon window resizing.
+    // This isn't as simple as it sounds - when XShmCreateImage is put in its own function, the code fails.
+    // This suggests UB, which I don't want to track down right now.
     software_backend(screen_coords _resolution) : x11_window(_resolution) {
         screen_coords resolution = get_drawable_resolution();
         gc = XCreateGC(dpy, win, 0, &values);
@@ -63,17 +77,25 @@ struct software_backend : public x11_window {
     void attach_shm(framebuffer& fb) {
         screen_coords resolution = get_drawable_resolution();
         fb = framebuffer(reinterpret_cast<u8*>(shminfo.shmaddr), resolution);
+        image->data = reinterpret_cast<char*>(fb.data());
     }
 
     void swap_buffers(renderer_base& r) {
         auto& frame = reinterpret_cast<renderer_software&>(r).get_framebuffer();
         char* frame_buffer = reinterpret_cast<char*>(frame.data());
-        if (image->data != frame_buffer) {
+        if (image->data != frame_buffer || regen == true) {
             attach_shm(frame);
+            regen = false;
+            return;
         }
         renderer_busy = true;
         XShmPutImage(dpy, win, gc, image, 0, 0, 0, 0, frame.size().x, frame.size().y, true);
 	}
+	void update_resolution() {
+        image->width = resolution.x;
+        image->height = resolution.y;
+        regen = true;
+    }
 };
 
 x11_window::x11_window(screen_coords resolution) {
@@ -122,6 +144,7 @@ x11_window::x11_window(screen_coords resolution) {
 screen_coords x11_window::get_drawable_resolution() {
 	XWindowAttributes retval;
 	XGetWindowAttributes(dpy, win, &retval);
+
 	return screen_coords(retval.width, retval.height);
 
 }
@@ -164,6 +187,21 @@ bool x11_window::poll_events() {
                 e.set_type(event_flags::cursor_moved);
                 e.set_active(true);
                 break;
+            case ConfigureNotify: {
+                XConfigureEvent xce = xev.xconfigure;
+                if (xce.width != resolution.x || xce.height != resolution.y) {
+
+                    resolution = get_drawable_resolution();
+                    printf("xce.x = %i, res.x = %i\n", xce.width, resolution.x);
+                    resize_callback(resolution);
+                    // If dynamic_cast returns null, it's not a software renderer. If it is, update its internal image buffer dimensions
+                    software_backend* bck = dynamic_cast<software_backend*>(this);
+                    if (bck != nullptr) {
+                        bck->update_resolution();
+                    }
+                }
+                break;
+            }
             default:
                 if(xev.type == shm_completion_event) {
                     renderer_busy = false;
@@ -176,7 +214,6 @@ bool x11_window::poll_events() {
 	return true;
 }
 #endif //__linux__
-
 
 #ifdef _WIN32
 #define UNICODE
@@ -212,6 +249,7 @@ win32_window::win32_window(screen_coords resolution) {
     hwnd = CreateWindowEx(0, wcx.lpszClassName, L"openglversioncheck", WS_OVERLAPPEDWINDOW | WS_VISIBLE, 0, 0, resolution.x, resolution.y, 0, 0, hInstance, this);
     ShowWindow(hwnd, 1);
     resolution = get_drawable_resolution();
+
 }
 
 
@@ -265,7 +303,7 @@ struct software_backend : public win32_window {
         bmih.bmiHeader.biPlanes = 1;
         bmih.bmiHeader.biCompression = BI_RGB;
         bmih.bmiHeader.biBitCount = 32;
-        bmih.bmiHeader.biSizeImage = resolution.w * resolution.y * 4;
+        bmih.bmiHeader.biSizeImage = resolution.x * resolution.y * 4;
 
         bitmap = CreateDIBSection(GetDC(hwnd), &bmih, DIB_RGB_COLORS, reinterpret_cast<void**>(&fb_ptr), NULL, NULL);
     }
@@ -292,9 +330,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) 
 	switch(message)	{
 	    case WM_CREATE: {
             SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR) ((CREATESTRUCT*)lParam)->lpCreateParams);
-            // For the sake of simplicity, perform these tasks for both renderers.
-            // Windows guarantees OpenGL 1.1, so this should always succeed.
-    		return true;
+            return true;
         }
         case WM_PAINT: {
             auto* window = reinterpret_cast<software_backend*>(wndptr);
@@ -323,10 +359,19 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) 
 	        if(wndptr->resize_callback) {
 	            screen_coords new_size(LOWORD(lParam), HIWORD(lParam));
                 wndptr->resize_callback(new_size);
+
             }
             return 0;
         }
-	    default:
+        case WM_KEYDOWN:
+            e.set_active(true);
+            [[fallthrough]];
+        case WM_KEYUP: {
+            e.ID = wParam;
+            e.set_type(event_flags::key_press);
+            break;
+        }
+        default:
 		    return DefWindowProc(hwnd, message, wParam, lParam);
 	}
 
@@ -336,24 +381,20 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) 
 #endif //_WIN32
 
 
-
-
-
-
-
-
-void window_manager::set_resolution(screen_coords resolution) {}
 void window_manager::set_vsync(bool state) {}
 void window_manager::set_fullscreen(bool state) {}
 
 
 window_manager::window_manager(settings_manager& settings) {
+#if OPENGL
     if (settings.flags.test(window_flags::use_software_render)) {
         window_context = std::unique_ptr<window_impl>(new software_backend(settings.resolution));
     } else {
         window_context = std::unique_ptr<window_impl>(new gl_backend(settings.resolution));
     }
-    set_resolution(settings.resolution);
+#else
+    window_context = std::unique_ptr<window_impl>(new software_backend(settings.resolution));
+#endif //OPENGL
     settings.resolution = window_context.get()->get_drawable_resolution();
     set_vsync(settings.flags.test(window_flags::vsync));
 }
