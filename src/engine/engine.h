@@ -35,8 +35,7 @@ public:
 	screen_coords resolution;
 	std::bitset<8> flags;
 	std::unordered_map<u8, command> bindings;
-
-	friend class engine;
+	int framerate_multiplier = 2;
 };
 
 struct window_impl {

@@ -6,7 +6,7 @@
 void engine::run_tick() {
     world_coords start_pos = ecs.get<c_display>(player_id()).get_dimensions().origin;
 
-    ecs.run_ecs();
+    ecs.run_ecs(settings.framerate_multiplier);
     ui.active_interact = ecs.systems.proxinteract.active_interact;
     //renderer.set_texture_data()
     for (auto logic_func : logic.logic) {
@@ -68,11 +68,11 @@ void logic_manager::remove(logic_func func) {
 
 
 settings_manager::settings_manager() {
-    bindings['w'] = command::move_up;
-    bindings['a'] = command::move_left;
-    bindings['s'] = command::move_down;
-    bindings['d'] = command::move_right;
-    bindings['e'] = command::interact;
+    bindings[0x57] = command::move_up;
+    bindings[0x41] = command::move_left;
+    bindings[0x53] = command::move_down;
+    bindings[0x44] = command::move_right;
+    bindings[0x45] = command::interact;
     bindings['\t'] = command::toggle_inventory;
 
     config_parser p("settings.txt");
@@ -87,6 +87,12 @@ settings_manager::settings_manager() {
 
     if (d->get<bool>("vsync")) flags.set(window_flags::vsync);
     if(d->get<bool>("use_software_renderer")) flags.set(window_flags::use_software_render);
+
+
+    int framerate_mult =  d->get<int>("framerate_multiplier");
+    if (framerate_mult != 0) {
+        framerate_multiplier = framerate_mult;
+    }
 }
 
 
@@ -152,8 +158,8 @@ bool handle_keypress(event& e, engine& g) {
         default: {  // Semantically, using the default case for movement is wrong, but I don't want to chain all four movement cases together
             g.command_states.set(command, e.active_state());
             world_coords& velocity = g.ecs.get<c_velocity>(g.player_id()).delta;
-            velocity.x = 0.05 * (g.command_states.test(command::move_right) - g.command_states.test(command::move_left));
-            velocity.y = 0.05 * (g.command_states.test(command::move_down) - g.command_states.test(command::move_up));
+            velocity.x = 0.10 * (g.command_states.test(command::move_right) - g.command_states.test(command::move_left));
+            velocity.y = 0.10 * (g.command_states.test(command::move_down) - g.command_states.test(command::move_up));
             return true;
         }
     }
@@ -223,7 +229,7 @@ engine::engine()  : settings(), window(settings){
     _renderer = std::unique_ptr<renderer_base>(new renderer_software(settings.resolution));
 #endif //OPENGL
 
-    ecs.systems.shooting.bullet_types.push_back(s_shooting::bullet{world_coords(0.3, 0.6), world_coords(8, 8), "bullet"});
+    ecs.systems.shooting.bullet_types.push_back(s_shooting::bullet{world_coords(0.3, 0.6), world_coords(0.25, 0.25), "bullet"});
     ecs.systems.shooting.shoot = [this] (std::string s, world_coords d, world_coords v, world_coords o, world_coords t, collision_flags a) {
         create_entity(egen_bullet, s, d, v, o, t, a);
     };

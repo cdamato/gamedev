@@ -61,7 +61,7 @@ private:
     entity _player_id = 65535;
     entity _map_id = 65535;
 
-	void run_ecs();
+	void run_ecs(int framerate_multiplier);
 
 	friend class engine;
 };

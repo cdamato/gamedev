@@ -42,8 +42,7 @@ void egen_bullet(entity e, engine& game, std::string texname,
 
 
 	c_velocity& v = game.ecs.add<c_velocity>(e);
-	v.delta = world_coords((delta.x / hypotLen) / 8, (delta.y / hypotLen) / 8);
-
+	v.delta = world_coords(speed.x * (delta.x / hypotLen), speed.y * (delta.y / hypotLen));
 }
 
 

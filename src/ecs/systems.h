@@ -57,7 +57,7 @@ private:
 };
 
 void system_collison_run(pool<c_collision>&, pool<c_display>&, c_mapdata&);
-void system_velocity_run(pool<c_velocity>&, pool<c_display>&);
+void system_velocity_run(pool<c_velocity>&, pool<c_display>&, int);
 
 // Combine proximity detectors and keypresses to allow us to "interact" with world entities
 class s_proxinteract {

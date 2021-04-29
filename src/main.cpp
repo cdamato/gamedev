@@ -4,7 +4,6 @@
 #include <fstream>
 #include "main/basic_entity_funcs.h"
 
-#define MS_PER_FRAME 16600
 
 void init_main_menu(engine& eng);
 void test_enemies_gone(engine& e) {
@@ -135,6 +134,7 @@ int main() {
     init_main_menu(w);
     while (loop)
     {
+        int ms_per_frame = 1000000 / (30 * w.settings.framerate_multiplier);
         lag += t.elapsed<timer::microseconds>();
         t.start();
 
@@ -146,9 +146,9 @@ int main() {
             fpscounter.start();
         }
 
-        while (lag >= timer::microseconds(MS_PER_FRAME)) {
+        while (lag >= timer::microseconds(ms_per_frame)) {
             w.run_tick();
-            lag -= timer::microseconds(MS_PER_FRAME);
+            lag -= timer::microseconds(ms_per_frame);
         }
 
 

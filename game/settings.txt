@@ -3,3 +3,6 @@ window_size = {1920, 1080}
 fullscreen = 0
 vsync = true
 use_software_renderer = false
+
+# Framerates are in multiples of 30fps, and this multiplier controls that. 2 means 60fps, 3 means 90, etc...
+framerate_multiplier = 2

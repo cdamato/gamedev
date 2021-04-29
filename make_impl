@@ -29,10 +29,10 @@ DEPFILES := $(patsubst %.o,%.d,$(OBJECTS))
 -include $(DEPFILES)
 
 $(BUILD_DIR)/%.o: $(SOURCE_PATH)% $(THIS_MAKEFILE)
-	@echo "[CXX] $@"
+	@echo "[CXX] $(INCLUDE_FLAGS)"
 	@mkdir -p "$(dir $@)"
 ifndef USE_DEPFLAGS
 	@$(CXX) $(LDFLAGS_REQ) $(CXXFLAGS) $(INCLUDE_FLAGS) -M -MMD -MP -c "$<" -o "$@"
 else
-	@$(CXX) $(LDFLAGS_REQ) $(CXXFLAGS) $(INCLUDE_FLAGS)z -c "$<" -o "$@"
+	@$(CXX) $(LDFLAGS_REQ) $(CXXFLAGS) $(INCLUDE_FLAGS) -c "$<" -o "$@"
 endif

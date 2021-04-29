@@ -43,9 +43,9 @@ entity_manager::entity_manager() {
 	std::iota (std::begin(entity_freelist), std::end(entity_freelist), 0); // Fill with 0, 1, ..., 99.
 }
 
-void ecs_engine::run_ecs() {
+void ecs_engine::run_ecs(int framerate_multiplier) {
     c_player& player = pool<c_player>().get(_player_id);
-	system_velocity_run(pool<c_velocity>(), pool<c_display>());
+	system_velocity_run(pool<c_velocity>(), pool<c_display>(), framerate_multiplier);
 	system_collison_run(pool<c_collision>(), pool<c_display>(), *pool<c_mapdata>().begin());
 	systems.shooting.run(pool<c_display>(), pool<c_weapon_pool>(), player);
 	systems.health.run(pool<c_health>(), pool<c_damage>(), pool<c_healthbar>(), entities);
@@ -430,10 +430,11 @@ void s_proxinteract::run(pool<c_proximity>& proximities, pool <c_keyevent>& keye
 /*     Misc. Systems     */
 /*************************/
 
-void system_velocity_run(pool<c_velocity>& velocities, pool<c_display>& sprites) {
+void system_velocity_run(pool<c_velocity>& velocities, pool<c_display>& sprites, int framerate_multiplier) {
     for (auto velocity : velocities) {
         c_display& spr = sprites.get(velocity.ref);
-        spr.move_by(velocity.delta);
+        sprite_coords new_velocity (velocity.delta.x / framerate_multiplier, velocity.delta.y / framerate_multiplier);
+        spr.move_by(new_velocity);
     }
 }
 
