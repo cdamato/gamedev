@@ -110,9 +110,7 @@ struct no_move {
 };
 
 using entity = u32;
-using texture = u32;
 constexpr static entity null_entity = 65535;
-constexpr static texture null_texture = 65535;
 
 class timer {
     std::chrono::steady_clock::time_point _start;

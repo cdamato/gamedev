@@ -13,7 +13,7 @@ void renderer_base::clear_sprites() {}
 
 void renderer_base::render_layer(std::multiset<sprite_data> sprites) {
     if (sprites.size() == 0 ) return;
-    texture current_tex = (*sprites.begin()).tex;
+    texture* current_tex = (*sprites.begin()).tex;
     render_layers layer = (*sprites.begin()).layer;
 
     for(auto sprite : sprites) {
@@ -46,18 +46,12 @@ void renderer_base::render_layer(std::multiset<sprite_data> sprites) {
     render_batch(current_tex, layer);
 }
 
-void renderer_base::set_texture_data(texture tex, texture_data data) {
-    if (textures.size() <= tex)
-        textures.resize(tex + 1);
-    textures[tex] = data;
-    process_texture_data(tex);
-}
 
-texture renderer_base::get_texture(std::string name) { return texture_map[name]; }
+texture* renderer_base::get_texture(std::string name) { return &textures[texture_map[name]]; }
 
 
 
-void load_pixel_data(texture_data& data, std::string filename) {
+void load_pixel_data(texture* data, std::string filename) {
     std::vector<unsigned char> pixels;
     unsigned int width;
     unsigned int height;
@@ -66,7 +60,7 @@ void load_pixel_data(texture_data& data, std::string filename) {
     if (error)
         printf("Error Loading texture: %s\n", lodepng_error_text(error));
     // With the file's data in hand, do the actual setting
-    data.image_data = image(pixels, size<u16>(width, height));
+    data->image_data = image(pixels, size<u16>(width, height));
 }
 
 
@@ -75,13 +69,12 @@ void renderer_base::load_textures() {
     auto d = p.parse();
     for (auto it = d->begin(); it != d->end(); it++) {
         const config_list* list = dynamic_cast<const config_list*>((&it->second)->get());
-        texture tex = add_texture(it->first);
-        texture_data data;
-        load_pixel_data(data, "textures/" + list->get<std::string>(0));
-        data.regions = size<u16>(list->get<int>(1), list->get<int>(2));
-        data.z_index = list->get<int>(3);
-        data.scale_factor = list->get<int>(4);
-        set_texture_data(tex, data);
+        texture* tex = add_texture(it->first);
+        load_pixel_data(tex, "textures/" + list->get<std::string>(0));
+        tex->regions = size<u16>(list->get<int>(1), list->get<int>(2));
+        tex->z_index = list->get<int>(3);
+        tex->scale_factor = list->get<int>(4);
+        update_texture_data(tex);
     }
 }
 
@@ -97,8 +90,8 @@ void renderer_base::load_textures() {
 
 
 
-void bind_texture(texture tex) {
-    glBindTexture(GL_TEXTURE_2D, tex);
+void bind_texture(texture* tex) {
+    glBindTexture(GL_TEXTURE_2D, tex->id);
 }
 
 class shader : no_copy, no_move
@@ -228,13 +221,13 @@ vertex* unmap_buffer() noexcept {
     return nullptr;
 }
 
-void renderer_gl::render_batch(texture current_tex, render_layers layer) {
+void renderer_gl::render_batch(texture* current_tex, render_layers layer) {
     if(quads_batched == 0) {
         return;
     }
     bind_texture(current_tex);
     shader& shader = data->get_shader(layer);
-    shader.update_uniform("z_index", textures[current_tex].z_index);
+    shader.update_uniform("z_index", current_tex->z_index);
 
     mapped_vertex_buffer = unmap_buffer();
     glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(quads_batched * 6),
@@ -262,11 +255,15 @@ fprintf( stderr, "GL CALLBACK: %s type = 0x%x, severity = 0x%x, message = %s\n",
 type, severity, message );
 }
 
-texture renderer_gl::add_texture(std::string name) {
+texture* renderer_gl::add_texture(std::string name) {
+
     u32 obj;
     glGenTextures(1, &obj);
+    texture* tex = &textures[obj];
+    tex->id = obj;
     texture_map[name] = obj;
-    return obj;
+
+    return tex;
 }
 
 renderer_gl::renderer_gl() {
@@ -349,11 +346,10 @@ void renderer_gl::clear_screen()
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 }
 
-void renderer_gl::process_texture_data(texture tex) {
-    texture_data data = textures[tex];
-    unsigned data_type = data.is_greyscale ? 0x1903 : GL_RGBA;
+void renderer_gl::update_texture_data(texture* tex) {
+    unsigned data_type = tex->is_greyscale ? 0x1903 : GL_RGBA;
     bind_texture(tex);
-    glTexImage2D(GL_TEXTURE_2D, 0, data_type, data.image_data.size().x, data.image_data.size().y, 0, data_type, GL_UNSIGNED_BYTE, data.image_data.data().data());
+    glTexImage2D(GL_TEXTURE_2D, 0, data_type, tex->image_data.size().x, tex->image_data.size().y, 0, data_type, GL_UNSIGNED_BYTE, tex->image_data.data().data());
     glGenerateMipmap(GL_TEXTURE_2D);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -368,9 +364,10 @@ void renderer_software::clear_screen() {
     memset(fb.data(), 0, fb.size().x * fb.size().y * 4);
 }
 
-texture renderer_software::add_texture(std::string name) {
+texture* renderer_software::add_texture(std::string name) {
     texture_map[name] = texture_counter;
-    texture tex = texture_counter;
+    texture* tex = &textures[texture_counter];
+    tex->id = texture_counter;
     texture_counter++;
     return tex;
 }
@@ -380,11 +377,11 @@ renderer_software::renderer_software(screen_coords resolution_in) {
     mapped_vertex_buffer = new vertex[NUM_QUADS  * VERTICES_PER_QUAD];
 }
 
-void renderer_software::process_texture_data(texture tex_id) {
-    auto& tex_data = textures[tex_id];
-    image& tex = tex_data.image_data;
+void renderer_software::update_texture_data(texture* tex) {
+    auto& tex_data = textures[tex->id];
+    image& image_data = tex_data.image_data;
     size<f32> upscale_ratio (1.0f / tex_data.scale_factor, 1.0f / tex_data.scale_factor);
-    size<u16> upscaled_size(tex.size().x / upscale_ratio.x, tex.size().y / upscale_ratio.y);
+    size<u16> upscaled_size(image_data.size().x / upscale_ratio.x, image_data.size().y / upscale_ratio.y);
     image upscaled_tex(std::vector<u8>(upscaled_size.x * upscaled_size.y * 4), upscaled_size);
 
     size_t write_index = 0;
@@ -392,8 +389,8 @@ void renderer_software::process_texture_data(texture tex_id) {
     point<f32> read_pos(0, 0);
     for (size_t y = 0; y < upscaled_size.y; y++) {
         for (size_t x = 0; x < upscaled_size.x; x++) {
-            read_index = int(read_pos.x) + int(read_pos.y) * tex.size().x ;
-            color c = tex.get(read_index);
+            read_index = int(read_pos.x) + int(read_pos.y) * image_data.size().x ;
+            color c = image_data.get(read_index);
             std::swap(c.r, c.b);
             upscaled_tex.write(write_index, c);
 
@@ -425,7 +422,7 @@ vertex transpose_vertex(std::array<f32, 6> matrix, vertex vert) {
 }
 
 
-void renderer_software::render_batch(texture current_tex, render_layers layer) {
+void renderer_software::render_batch(texture* current_tex, render_layers layer) {
     std::array<f32, 6> matrix;
     switch (layer) {
         case render_layers::text:
@@ -439,8 +436,7 @@ void renderer_software::render_batch(texture current_tex, render_layers layer) {
             break;
     }
 
-    if (current_tex >= textures.size()) throw "bruh";
-    image& tex = textures[current_tex].image_data;
+    image& tex = current_tex->image_data;
 
     rect<f32> frame(point<f32>(0, 0), fb.size().to<f32>());
     for (size_t i = 0; i < quads_batched * 4; i+= 4) {

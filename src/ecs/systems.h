@@ -9,13 +9,14 @@ class entity_manager;
 
 class texture_generator {
 public:
-	void set_texture(texture in) { tex = in; }
-	texture get_texture() { return tex; }
-	texture_data& get_data() { return data;  }
+	void set_texture(texture* in) {
+		tex = in;
+		regenerate = true;
+	}
+	texture* get_texture() { return tex; }
 protected:
-	texture_data data;
 	size_t last_atlassize = 0;
-	texture tex;
+	texture* tex;
 	bool regenerate = true;
 };
 

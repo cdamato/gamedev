@@ -44,8 +44,8 @@ struct vertex {
     point<f32> uv;
 };
 
-struct texture_data {
-    texture id;
+struct texture {
+    u32 id;
     sprite_coord_t z_index;
     image image_data;
     size<u16> regions;
@@ -62,7 +62,7 @@ enum class render_layers : u8 {
 };
 
 struct sprite_data {
-    texture tex = null_texture;
+    texture* tex = nullptr;
     u16 size = 0;
     u16 start = 0;
     vertex* vertices = nullptr;

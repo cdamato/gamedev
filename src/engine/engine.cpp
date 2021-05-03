@@ -20,7 +20,7 @@ void engine::run_tick() {
         //handle_hover(a, *this);
     }
 
-    renderer().set_texture_data(ecs.systems.health.get_texture(), ecs.systems.health.get_data());
+    renderer().update_texture_data(ecs.systems.health.get_texture());
 
     renderer().set_camera(offset);
     renderer().clear_sprites();

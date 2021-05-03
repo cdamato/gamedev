@@ -90,7 +90,7 @@ void tile_data::set_data(u8 quad_index, u8 type) {
 }
 
 u32 c_display::add_sprite(u16 num_quads, render_layers layer) {
-    _sprites.push_back(sprite_data{null_texture, num_quads, _vertices.size() / VERTICES_PER_QUAD, nullptr, layer});
+    _sprites.push_back(sprite_data{nullptr, num_quads, _vertices.size() / VERTICES_PER_QUAD, nullptr, layer});
     _vertices.resize(_vertices.size() + (VERTICES_PER_QUAD * num_quads));
     vertex* ptr = _vertices.data();
     for (auto& sprite : _sprites) {
@@ -342,7 +342,7 @@ void s_health::set_entry(u32 index, f32 val) {
     size_t start = index * 32;
 
     for (size_t i = start; i < start + 32 ; i ++) {
-        data.image_data.write(i, c);
+        tex->image_data.write(i, c);
     }
 }
 
@@ -354,8 +354,8 @@ void s_health::update_healthbars(pool<c_healthbar>& healthbars, pool<c_health>& 
 
     size_t index = 0;
     size<u16> tex_size = size<u16>(8, 4 * healthbars.size());
-    data.image_data = image(std::vector<u8>(tex_size.x * tex_size.y * 4), tex_size);
-    data.z_index = 2;
+    tex->image_data = image(std::vector<u8>(tex_size.x * tex_size.y * 4), tex_size);
+    tex->z_index = 2;
 
     size<f32> slice_size(1, 1.0f / healthbars.size());
     sprite_coords pos(1, 0);
