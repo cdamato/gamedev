@@ -2,6 +2,7 @@
 #include <common/parser.h>
 #include <GL/glew.h>
 #include <assert.h>
+#include <cmath>
 #include "renderer.h"
 
 static constexpr unsigned VERTICES_PER_QUAD = 4;
@@ -363,17 +364,8 @@ void renderer_gl::process_texture_data(texture tex) {
 #endif //OPENGL
 
 
-
-
-
-
-
-
-
-
 void renderer_software::clear_screen() {
-    //printf("frame is %p, \n", reinterpret_cast<renderer_software*>(_renderer.get())->get_framebuffer().data());
-    //memset(fb.data(), 255, fb.size().w * fb.size().y * 4);
+    memset(fb.data(), 0, fb.size().x * fb.size().y * 4);
 }
 
 texture renderer_software::add_texture(std::string name) {
@@ -384,10 +376,10 @@ texture renderer_software::add_texture(std::string name) {
 }
 
 renderer_software::renderer_software(screen_coords resolution_in) {
-    //resolution = resolution_in;
     load_textures();
     mapped_vertex_buffer = new vertex[NUM_QUADS  * VERTICES_PER_QUAD];
 }
+
 void renderer_software::process_texture_data(texture tex_id) {
     auto& tex_data = textures[tex_id];
     image& tex = tex_data.image_data;
@@ -424,50 +416,26 @@ void renderer_software::set_camera(vec2d<f32> camera_in) {
     camera = camera_in;
 }
 
-vertex transpose_vertex(std::array<f32, 4> matrix, vertex vert) {
+
+vertex transpose_vertex(std::array<f32, 6> matrix, vertex vert) {
     point<f32> new_vertex;
-    new_vertex.x = (matrix[0] * vert.pos.x) + (matrix[1] * vert.pos.y);
-    new_vertex.y = (matrix[2] * vert.pos.x) + (matrix[3] * vert.pos.y);
+    new_vertex.x = (matrix[0] * vert.pos.x) + (matrix[1] * vert.pos.y) + matrix [2];
+    new_vertex.y = (matrix[3] * vert.pos.x) + (matrix[4] * vert.pos.y) + matrix [5];
     return vertex {new_vertex, vert.uv};
 }
 
-#ifdef SSE
-#include <immintrin.h>
-// Utilizes SSE intrinsics to achieve non-temporal writes. to remove a bottleneck created by memcpy.
-void alt_memcpy(void* data, void* src, std::size_t bytes)
-{
-    assert(bytes % 64 == 0);
-    auto vec_pointer = static_cast<float*>(data);
-    auto src_pointer = static_cast<__m128*>(src);
-    const auto zero = _mm_setzero_ps();
-
-    // One float is equivalent to 1 pixel byte - one SSE transfer carries 4 pixels.
-    // One loop iteration will carry 16 pixels, which works well for most cases.
-    for(const auto vec_end = vec_pointer + (bytes / sizeof(float)); vec_pointer != vec_end; vec_pointer += 16, src_pointer += 4) {
-        _mm_stream_ps(&vec_pointer[0], src_pointer[0]);
-        _mm_stream_ps(&vec_pointer[4], src_pointer[1]);
-        _mm_stream_ps(&vec_pointer[8], src_pointer[2]);
-        _mm_stream_ps(&vec_pointer[12], src_pointer[3]);
-    }
-}
-#else
-
-// A fallback passthrough function to regular memcpy
-void alt_memcpy(void* data, void* src, std::size_t bytes)
-{
-    memcpy(data, src, bytes);
-}
-#endif //SSE
 
 void renderer_software::render_batch(texture current_tex, render_layers layer) {
-    std::array<f32, 4> matrix;
+    std::array<f32, 6> matrix;
     switch (layer) {
         case render_layers::text:
         case render_layers::ui:
-            matrix = std::array<f32, 4> { 1, 0, 0, 1 };
+            matrix = std::array<f32, 6> { 1, 0, 0,
+                                          0, 1, 0 };
             break;
         case render_layers::sprites:
-            matrix = std::array<f32, 4> { 64, 0, 0, 64 };
+            matrix = std::array<f32, 6> { 64, 0, 64 * -camera.x,
+                                          0, 64, 64 * -camera.y};
             break;
     }
 
@@ -479,19 +447,26 @@ void renderer_software::render_batch(texture current_tex, render_layers layer) {
         auto tl_vert = transpose_vertex(matrix, mapped_vertex_buffer[i]);
         auto br_vert = transpose_vertex(matrix, mapped_vertex_buffer[i + 2]);
 
-        rect<f32> sprite_rect(tl_vert.pos, tl_vert.pos - br_vert.pos);
+        rect<f32> sprite_rect(tl_vert.pos, br_vert.pos - tl_vert.pos);
         if (!AABB_collision(frame, sprite_rect)) continue;
 
-        tl_vert.pos = point<f32>(std::max(0.0f, tl_vert.pos.x), std::max(0.0f, tl_vert.pos.y));
-        br_vert.pos = point<f32>(std::min(f32(fb.size().x), br_vert.pos.x), std::min(f32(fb.size().y), br_vert.pos.y));
+        point<f32> tl_clipped(round(std::max(0.0f, tl_vert.pos.x)), round(std::max(0.0f, tl_vert.pos.y)));
+        point<f32> br_clipped(round(std::min(f32(fb.size().x), br_vert.pos.x)), round(std::min(f32(fb.size().y), br_vert.pos.y)));
+        point<f32> clipped_offset = tl_clipped - tl_vert.pos;
 
-        size<u16> clipped_size(br_vert.pos.x - tl_vert.pos.x, br_vert.pos.y - tl_vert.pos.y);
-        size_t write_index = (tl_vert.pos.x  + (tl_vert.pos.y * fb.size().x)) * 4;
+        size<u16> tl_texel(tl_vert.uv.x * tex.size().x + abs(clipped_offset.x), tl_vert.uv.y * tex.size().y+ abs(clipped_offset.y));
+        size<u16> clipped_size(br_clipped.x - tl_clipped.x, br_clipped.y - tl_clipped.y);
+        size_t fb_write_start = (tl_clipped.x  + (tl_clipped.y * fb.size().x)) * 4;
+        size_t fb_write_stride = (fb.size().x) * 4;
+        size_t tex_read_start = (tl_texel.x  + (tl_texel.y * tex.size().x)) * 4;
+        size_t tex_read_stride = (tex.size().x) * 4;
         size_t bytes_per_line = clipped_size.x * 4;
-        size_t write_stride = (fb.size().x) * 4;
 
         for (size_t y = 0; y < clipped_size.y; y++) {
-            alt_memcpy(fb.data() + write_index + (y * write_stride) , tex.data().data() + (y * 4 *  tex.size().x), bytes_per_line);
+            auto dest_offset = fb_write_start + (y * fb_write_stride);
+            auto src_offset = tex_read_start + (y * tex_read_stride);
+
+            memcpy(fb.data() + dest_offset, tex.data().data() + src_offset, bytes_per_line);
         }
     }
     quads_batched = 0;

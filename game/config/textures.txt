@@ -3,7 +3,7 @@
 
 bullet = {"bullet.png", 1, 1, 2, 1}
 button = {"button.png", 1, 1, 2, 8}
-highlight = {"highlight.png", 2, 1, 1, 2}
-items = {"items.png", 2, 1, 2, 2}
+highlight = {"highlight.png", 2, 1, 1, 4}
+items = {"items.png", 2, 1, 2, 4}
 player = {"player.png", 1, 1, 2, 4}
 tilemap = {"tilemap.png", 5, 3, 1, 2}

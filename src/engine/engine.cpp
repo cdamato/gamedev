@@ -68,11 +68,11 @@ void logic_manager::remove(logic_func func) {
 
 
 settings_manager::settings_manager() {
-    bindings[0x57] = command::move_up;
-    bindings[0x41] = command::move_left;
-    bindings[0x53] = command::move_down;
-    bindings[0x44] = command::move_right;
-    bindings[0x45] = command::interact;
+    bindings['w'] = command::move_up;
+    bindings['a'] = command::move_left;
+    bindings['s'] = command::move_down;
+    bindings['d'] = command::move_right;
+    bindings['e'] = command::interact;
     bindings['\t'] = command::toggle_inventory;
 
     config_parser p("settings.txt");
