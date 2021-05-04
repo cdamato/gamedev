@@ -377,11 +377,9 @@ renderer_software::renderer_software(screen_coords resolution_in) {
     mapped_vertex_buffer = new vertex[NUM_QUADS  * VERTICES_PER_QUAD];
 }
 
-void renderer_software::update_texture_data(texture* tex) {
-    auto& tex_data = textures[tex->id];
-    image& image_data = tex_data.image_data;
-    size<f32> upscale_ratio (1.0f / tex_data.scale_factor, 1.0f / tex_data.scale_factor);
-    size<u16> upscaled_size(image_data.size().x / upscale_ratio.x, image_data.size().y / upscale_ratio.y);
+image rescale_texture(image source, size<u16> new_size) {
+    size<f32> upscale_ratio (new_size.x / source.size().x, new_size.y / source.size().y);
+    size<u16> upscaled_size(source.size().x * upscale_ratio.x, source.size().y * upscale_ratio.y);
     image upscaled_tex(std::vector<u8>(upscaled_size.x * upscaled_size.y * 4), upscaled_size);
 
     size_t write_index = 0;
@@ -389,19 +387,27 @@ void renderer_software::update_texture_data(texture* tex) {
     point<f32> read_pos(0, 0);
     for (size_t y = 0; y < upscaled_size.y; y++) {
         for (size_t x = 0; x < upscaled_size.x; x++) {
-            read_index = int(read_pos.x) + int(read_pos.y) * image_data.size().x ;
-            color c = image_data.get(read_index);
+            read_index = int(read_pos.x) + int(read_pos.y) * source.size().x ;
+            color c = source.get(read_index);
             std::swap(c.r, c.b);
             upscaled_tex.write(write_index, c);
 
 
             write_index++;
-            read_pos.x += upscale_ratio.x;
+            read_pos.x += 1.0f / upscale_ratio.x;
         }
-        read_pos.y += upscale_ratio.y;
+        read_pos.y += 1.0f / upscale_ratio.y;
         read_pos.x = 0;
     }
-    std::swap(tex_data.image_data, upscaled_tex);
+    return upscaled_tex;
+}
+
+void renderer_software::update_texture_data(texture* tex) {
+    image& image_data = tex->image_data;
+    if(image_data.size().x == 0 && image_data.size().y == 0) return;
+
+    textures_2x_scaled[tex->id] = rescale_texture(image_data, size<u16>(image_data.size().x * 2, image_data.size().y * 2));
+    textures_4x_scaled[tex->id] = rescale_texture(image_data, size<u16>(image_data.size().x * 4, image_data.size().y * 4));
 }
 
 void renderer_software::set_viewport(screen_coords screen_size) {
@@ -422,6 +428,28 @@ vertex transpose_vertex(std::array<f32, 6> matrix, vertex vert) {
 }
 
 
+void render_quad(void* fb_data, screen_coords fb_size, image& texture_data, vertex tl_vert, vertex br_vert) {
+    point<f32> tl_clipped(round(std::max(0.0f, tl_vert.pos.x)), round(std::max(0.0f, tl_vert.pos.y)));
+    point<f32> br_clipped(round(std::min(f32(fb_size.x), br_vert.pos.x)), round(std::min(f32(fb_size.y), br_vert.pos.y)));
+    point<f32> clipped_offset = tl_clipped - tl_vert.pos;
+
+    size<u16> tl_texel(tl_vert.uv.x * texture_data.size().x + abs(clipped_offset.x), tl_vert.uv.y * texture_data.size().y + abs(clipped_offset.y));
+    size<u16> clipped_size = (br_clipped - tl_clipped).to<u16>();
+
+    size_t fb_write_start = (tl_clipped.x  + (tl_clipped.y * fb_size.x)) * 4;
+    size_t fb_write_stride = (fb_size.x) * 4;
+    size_t tex_read_start = (tl_texel.x  + (tl_texel.y * texture_data.size().x)) * 4;
+    size_t tex_read_stride = (texture_data.size().x) * 4;
+    size_t bytes_per_line = clipped_size.x * 4;
+
+    for (size_t y = 0; y < clipped_size.y; y++) {
+        auto dest_offset = fb_write_start + (y * fb_write_stride);
+        auto src_offset = tex_read_start + (y * tex_read_stride);
+
+        memcpy(fb_data + dest_offset, texture_data.data().data() + src_offset, bytes_per_line);
+    }
+}
+
 void renderer_software::render_batch(texture* current_tex, render_layers layer) {
     std::array<f32, 6> matrix;
     switch (layer) {
@@ -436,34 +464,28 @@ void renderer_software::render_batch(texture* current_tex, render_layers layer) 
             break;
     }
 
-    image& tex = current_tex->image_data;
 
     rect<f32> frame(point<f32>(0, 0), fb.size().to<f32>());
     for (size_t i = 0; i < quads_batched * 4; i+= 4) {
-        auto tl_vert = transpose_vertex(matrix, mapped_vertex_buffer[i]);
-        auto br_vert = transpose_vertex(matrix, mapped_vertex_buffer[i + 2]);
+        const auto tl_vert = transpose_vertex(matrix, mapped_vertex_buffer[i]);
+        const auto br_vert = transpose_vertex(matrix, mapped_vertex_buffer[i + 2]);
 
         rect<f32> sprite_rect(tl_vert.pos, br_vert.pos - tl_vert.pos);
         if (!AABB_collision(frame, sprite_rect)) continue;
 
-        point<f32> tl_clipped(round(std::max(0.0f, tl_vert.pos.x)), round(std::max(0.0f, tl_vert.pos.y)));
-        point<f32> br_clipped(round(std::min(f32(fb.size().x), br_vert.pos.x)), round(std::min(f32(fb.size().y), br_vert.pos.y)));
-        point<f32> clipped_offset = tl_clipped - tl_vert.pos;
+        size<f32> subregion_size = current_tex->image_data.size().to<f32>() * (br_vert.uv - tl_vert.uv);
 
-        size<u16> tl_texel(tl_vert.uv.x * tex.size().x + abs(clipped_offset.x), tl_vert.uv.y * tex.size().y+ abs(clipped_offset.y));
-        size<u16> clipped_size(br_clipped.x - tl_clipped.x, br_clipped.y - tl_clipped.y);
-        size_t fb_write_start = (tl_clipped.x  + (tl_clipped.y * fb.size().x)) * 4;
-        size_t fb_write_stride = (fb.size().x) * 4;
-        size_t tex_read_start = (tl_texel.x  + (tl_texel.y * tex.size().x)) * 4;
-        size_t tex_read_stride = (tex.size().x) * 4;
-        size_t bytes_per_line = clipped_size.x * 4;
-
-        for (size_t y = 0; y < clipped_size.y; y++) {
-            auto dest_offset = fb_write_start + (y * fb_write_stride);
-            auto src_offset = tex_read_start + (y * tex_read_stride);
-
-            memcpy(fb.data() + dest_offset, tex.data().data() + src_offset, bytes_per_line);
+        if ((subregion_size * 4) - sprite_rect.size < size<f32>(0.01, 0.01)) {
+            render_quad(fb.data(), fb.size(), textures_4x_scaled[current_tex->id], tl_vert, br_vert);
+        } else if ((subregion_size * 2) - sprite_rect.size < size<f32>(0.01, 0.01)) {
+            render_quad(fb.data(), fb.size(), textures_2x_scaled[current_tex->id], tl_vert, br_vert);
+        } else if (subregion_size - sprite_rect.size < size<f32>(0.01, 0.01)) {
+            render_quad(fb.data(), fb.size(), current_tex->image_data, tl_vert, br_vert);
+        } else {
+            image a = rescale_texture(current_tex->image_data, sprite_rect.size.to<u16>());
+            render_quad(fb.data(), fb.size(), a, tl_vert, br_vert);
         }
+
     }
     quads_batched = 0;
 }

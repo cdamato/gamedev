@@ -64,6 +64,9 @@ private:
     vec2d<f32> camera;
     size_t texture_counter = 0;
 
+    std::array<image, 2048> textures_2x_scaled;
+    std::array<image, 2048> textures_4x_scaled;
+
     void render_batch(texture*, render_layers);
     void update_texture_data(texture*);
 };
