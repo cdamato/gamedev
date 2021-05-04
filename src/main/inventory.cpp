@@ -35,8 +35,7 @@ void write_item_to_slot(size_t index, sprite_coords pos, entity e, item item_in,
     sprite_coords item_size = spr.sprites(select.box_index).get_dimensions().size;
     spr.sprites(1).set_pos(pos, item_size, index);
 
-    size<f32> subtexture(1.0f / 2, 1);
-    spr.sprites(1).set_uv(point<f32>(subtexture.x * item_in.ID, 0), subtexture, index);
+    spr.sprites(1).set_tex_region(item_in.ID, index);
 }
 
 void empty_slot(size_t index, sprite_coords pos, entity e, engine& g) {
@@ -111,7 +110,7 @@ bool inventory_motion(entity e, const event& ev, engine& game) {
 	//if (ev.active_state() == false)	w->flags.unset(widget::flags::pressed);
 	point<u16> active = select.active;
 	size_t index = active.x + (active.y * select.grid_size.x);
-	spr.sprites(0).set_uv(point<f32>(0, 0), size<f32>(0.5, 1), index);
+	spr.sprites(0).set_tex_region(0, index);
 
 	if (ev.active_state() == false) return true;
 
@@ -122,7 +121,7 @@ bool inventory_motion(entity e, const event& ev, engine& game) {
 
 	index = active.x + (active.y * select.grid_size.x);
 	select.active = active;
-	spr.sprites(0).set_uv(point<f32>(0.5, 0), size<f32>(0.5, 1), index);
+	spr.sprites(0).set_tex_region(1, index);
 
 	return true;
 }
@@ -153,8 +152,8 @@ void inventory_init(entity e, engine& g, entity parent, c_inventory& inv, screen
 
     select.box_index = spr.add_sprite(1, render_layers::null);
     spr.sprites(select.box_index).set_pos(sprite_coords(0, 0), element_size, 0);
-    spr.sprites(select.box_index).set_uv(point<f32>(0.5, 0), size<f32>(0.5, 1), 0);
     spr.sprites(select.box_index).tex = g.renderer().get_texture("highlight");
+    spr.sprites(select.box_index).set_tex_region(1, 0);
 
 
 	int index = 0;
@@ -162,7 +161,7 @@ void inventory_init(entity e, engine& g, entity parent, c_inventory& inv, screen
 	for (u16 y = 0; y < select.grid_size.y; y++) {
 		for (u16 x = 0; x < select.grid_size.x; x++) {
 			spr.sprites(0).set_pos(pos, element_size, index);
-			spr.sprites(0).set_uv(point<f32>(0, 0), size<f32>(0.5, 1), index);
+			spr.sprites(0).set_tex_region(0, index);
 
 			if (inv.data.exists(index)) {
                 write_item_to_slot(index, pos, e, inv.data.get(index), g);

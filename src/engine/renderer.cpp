@@ -475,6 +475,7 @@ void renderer_software::render_batch(texture* current_tex, render_layers layer) 
 
         size<f32> subregion_size = current_tex->image_data.size().to<f32>() * (br_vert.uv - tl_vert.uv);
 
+        // test if the sprite's render size is 4x the texture, 2x, 1x, or something else.
         if ((subregion_size * 4) - sprite_rect.size < size<f32>(0.01, 0.01)) {
             render_quad(fb.data(), fb.size(), textures_4x_scaled[current_tex->id], tl_vert, br_vert);
         } else if ((subregion_size * 2) - sprite_rect.size < size<f32>(0.01, 0.01)) {

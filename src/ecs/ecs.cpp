@@ -123,13 +123,15 @@ void sprite_data::set_pos(sprite_coords pos, sprite_coords size, size_t quad) {
     vertices[index + 3].pos = sprite_coords(pos.x, pos.y + size.y);
 }
 
-void sprite_data::set_uv(point<f32> pos, ::size<f32> size, size_t quad) {
+void sprite_data::set_tex_region(size_t tex_index, size_t quad) {
+    ::size<f32> region_size(1.0f / tex->regions.x, 1.0f / tex->regions.y);
+    ::size<f32> pos = region_size * ::size<f32>(tex_index % tex->regions.x, tex_index / tex->regions.x);
     // Vertices are in order top left, top right, bottom right, and bottom left
     size_t index = (quad) * VERTICES_PER_QUAD;
     vertices[index].uv = pos;
-    vertices[index + 1].uv = point<f32>(pos.x + size.x, pos.y);
-    vertices[index + 2].uv = pos + point<f32>(size.x, size.y);
-    vertices[index + 3].uv = point<f32>(pos.x, pos.y + size.y);
+    vertices[index + 1].uv = point<f32>(pos.x + region_size.x, pos.y);
+    vertices[index + 2].uv = pos + point<f32>(region_size.x, region_size.y);
+    vertices[index + 3].uv = point<f32>(pos.x, pos.y + region_size.y);
 }
 
 void c_display::move_to(sprite_coords pos) {
@@ -356,9 +358,9 @@ void s_health::update_healthbars(pool<c_healthbar>& healthbars, pool<c_health>& 
     size<u16> tex_size = size<u16>(8, 4 * healthbars.size());
     tex->image_data = image(std::vector<u8>(tex_size.x * tex_size.y * 4), tex_size);
     tex->z_index = 2;
+    tex->regions = size<u16>(1, healthbars.size());
 
     size<f32> slice_size(1, 1.0f / healthbars.size());
-    sprite_coords pos(1, 0);
 
     for (auto& healthbar : healthbars) {
         c_health& health = healths.get(healthbar.ref);
@@ -373,13 +375,12 @@ void s_health::update_healthbars(pool<c_healthbar>& healthbars, pool<c_health>& 
             spr.sprites(index).tex = tex;
             size<f32> size(1, 0.25);
 
-            spr.sprites(0).set_pos(tl, size, spr.sprites(index).start );
+            spr.sprites(healthbar.sprite_index).set_pos(tl, size, 0);
         }
 
-        spr.sprites(0).set_uv(pos, slice_size, healthbar.sprite_index);
+        spr.sprites(healthbar.sprite_index).set_tex_region(index, 0);
         set_entry(index, (health.health / health.max_health) * 100.0f);
 
-        pos.y += slice_size.y;
         index++;
     }
 

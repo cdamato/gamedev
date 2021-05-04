@@ -16,7 +16,7 @@ void egen_bullet(entity e, engine& game, std::string texname,
 	spr.sprites(0).tex = game.renderer().get_texture(texname.c_str());
 	//spr._dimensions = rect<f32>(source, dimensions);
 	spr.sprites(0).set_pos(source, dimensions, 0);
-	spr.sprites(0).set_uv(point<f32>(0, 0), size<f32>(1, 1), 0);
+	spr.sprites(0).set_tex_region(0, 0);
 	spr.rotate(atan2(dest.x - source.x, (source.y - dest.y)));
 
 
@@ -55,7 +55,7 @@ void egen_enemy(entity e, engine& game, world_coords pos)
 	spr.add_sprite(1, render_layers::sprites);
 	spr.sprites(0).tex = game.renderer().get_texture("player");
 	spr.sprites(0).set_pos(pos, sprite_coords(1, 1), 0);
- 	spr.sprites(0).set_uv(point<f32>(0, 0), size<f32>(1, 1), 0);
+ 	spr.sprites(0).set_tex_region(0, 0);
 
 
 	c_collision& c = game.ecs.add<c_collision>(e);
@@ -85,7 +85,7 @@ void setup_player(engine& game)
 	spr.sprites(0).tex = game.renderer().get_texture("player");
 
 	spr.sprites(0).set_pos(sprite_coords(9, 9), sprite_coords(1, 1), 0);
-	spr.sprites(0).set_uv(point<f32>(0, 0), size<f32>(1, 1), 0);
+	spr.sprites(0).set_tex_region(0, 0);
 
 	game.ecs.add<c_velocity>(e);
 	game.ecs.add<c_weapon_pool>(e);
@@ -148,9 +148,9 @@ void make_parent(entity a, entity b, engine& game) {
 void basic_sprite_setup(entity e, engine& g, render_layers layer, sprite_coords origin, sprite_coords pos_size, point<f32> uv_origin, size<f32> uv_size, std::string texname) {
     c_display& spr = g.ecs.add<c_display>(e);
     spr.add_sprite(1, layer);
+	spr.sprites(0).tex = g.renderer().get_texture(texname.c_str());
     spr.sprites(0).set_pos(origin, pos_size, 0);
-    spr.sprites(0).set_uv(uv_origin, uv_size, 0);
-    spr.sprites(0).tex = g.renderer().get_texture(texname.c_str());
+    spr.sprites(0).set_tex_region(0, 0);
 }
 
 void make_widget(entity e, engine& g, entity parent) {

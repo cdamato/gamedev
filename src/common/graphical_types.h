@@ -72,7 +72,8 @@ struct sprite_data {
 
     rect<f32> get_dimensions();
     void set_pos(sprite_coords, sprite_coords, size_t);
-    void set_uv(point<f32>, ::size<f32>, size_t);
+
+    void set_tex_region(size_t, size_t);
 };
 
 

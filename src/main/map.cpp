@@ -115,12 +115,12 @@ void set_map(engine& game, world_coords dimensions, std::vector<u8> tiles) {
 	size_t index = 0;
 	u8 tile_type = 0;
 
+    texture* map_tex = spr.sprites(0).tex;
 	std::vector<u8> modified_map(tiles.size());
 	auto write_tile = [&] (f32 pos_x, f32 pos_y, f32 tex_x, f32 tex_y) {
-		tex_x *= tex_w;
-		tex_y *= tex_h;
+		size_t tex_index = tex_x + (tex_y * map_tex->regions.x);
 		spr.sprites(0).set_pos(sprite_coords(pos_x, pos_y), sprite_coords(1, 1), index);
-		spr.sprites(0).set_uv(point<f32>(tex_x, tex_y), size<f32>(tex_w, tex_h), index);
+		spr.sprites(0).set_tex_region(tex_index, index);
 		index++;
 
 	};
@@ -192,7 +192,7 @@ void gen_obstaclething(entity e, engine& game, world_coords pos) {
 	spr.sprites(0).tex = game.renderer().get_texture("crate");
 
 	spr.sprites(0).set_pos(pos, sprite_coords(1, 1), 0);
-	spr.sprites(0).set_uv(point<f32>(0, 0), size<f32>(1.0f, 1.0f), 0);
+	spr.sprites(0).set_tex_region(0, 0);
 }
 
 std::vector<u8> generate_map(world_coords map_size) {
