@@ -46,7 +46,7 @@ public:
 	template <typename T>
 	constexpr T& add(entity e) {
 		auto& c = components.get_pool(type_tag<T>()).add(e, T());
-		c.ref = e;
+		c.parent = e;
 		return c;
 	}
 

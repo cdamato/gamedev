@@ -28,7 +28,7 @@ void pickup_item(entity e, sprite_coords box_snap_point, engine& g) {
     spr.sprites(select.box_index).layer = render_layers::ui;
 }
 
-void write_item_to_slot(size_t index, sprite_coords pos, entity e, item item_in, engine& g) {
+void write_item_to_slot(size_t index, sprite_coords pos, entity e, c_inventory::item item_in, engine& g) {
     c_display& spr = g.ecs.get<c_display>(e);
     c_selection &select = g.ecs.get<c_selection>(e);
 
@@ -53,13 +53,13 @@ void place_item(entity e, engine& g, c_selection& select,    c_inventory& inv,  
     point<u16> box_point = get_gridsquare(spr, spr.sprites(select.box_index).get_dimensions().origin);
     size_t box_index = box_point.x + (box_point.y * select.grid_size.x);
 
-    item held = inv.data.get(box_index);
+    c_inventory::item held = inv.data.get(box_index);
     empty_slot(box_index, snap_to_grid(spr, box_point), e, g);
     inv.data.remove(box_index);
 
 
     if (inv.data.exists(select.active_index())) {
-        item highlight = inv.data.get(select.active_index());
+        c_inventory::item highlight = inv.data.get(select.active_index());
         inv.data.remove(select.active_index());
         inv.data.add(box_index, highlight);
         write_item_to_slot(box_index, snap_to_grid(spr, select.active), e, highlight, g);
@@ -189,7 +189,7 @@ void transfer_item(entity e, engine& g, c_inventory& b_inv) {
     point<u16> held_point = get_gridsquare(a_spr, a_spr.sprites(a_select.box_index).get_dimensions().origin);
     size_t held_index = held_point.x + (held_point.y * a_select.grid_size.x);
 
-    item held = a_inv.data.get(held_index);
+    c_inventory::item held = a_inv.data.get(held_index);
     empty_slot(held_index, snap_to_grid(a_spr, held_point), a, g);
     a_inv.data.remove(held_index);
 
@@ -210,7 +210,7 @@ void transfer_item(entity e, engine& g, c_inventory& b_inv) {
     g.ui.cursor = 65535;
 
     if (b_inv.data.exists(b_select.active_index())) {
-        item highlight = b_inv.data.get(b_select.active_index());
+        c_inventory::item highlight = b_inv.data.get(b_select.active_index());
         b_inv.data.remove(b_select.active_index());
         a_inv.data.add(held_index, highlight);
         write_item_to_slot(held_index, snap_to_grid(a_spr, a_select.active), a, highlight, g);

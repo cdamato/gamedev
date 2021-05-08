@@ -8,7 +8,7 @@
 
 
 void egen_bullet(entity e, engine& game, std::string texname,
-				 world_coords dimensions, world_coords speed, world_coords source, world_coords dest, collision_flags team)
+				 world_coords dimensions, world_coords speed, world_coords source, world_coords dest, c_collision::flags team)
 {
 
 	c_display& spr = game.ecs.add<c_display>(e);
@@ -17,7 +17,7 @@ void egen_bullet(entity e, engine& game, std::string texname,
 	//spr._dimensions = rect<f32>(source, dimensions);
 	spr.sprites(0).set_pos(source, dimensions, 0);
 	spr.sprites(0).set_tex_region(0, 0);
-	spr.rotate(atan2(dest.x - source.x, (source.y - dest.y)));
+	spr.sprites(0).rotate(atan2(dest.x - source.x, (source.y - dest.y)));
 
 
 
@@ -26,8 +26,8 @@ void egen_bullet(entity e, engine& game, std::string texname,
 
 	c_collision& c = game.ecs.add<c_collision>(e);
 	c.set_team_signal(team);
-	c.set_tilemap_collision(collision_flags::ground);
-	c.set_tilemap_collision(collision_flags::air);
+	c.set_tilemap_collision(c_collision::flags::ground);
+	c.set_tilemap_collision(c_collision::flags::air);
 	//c.set_tilemap_collision(collision_types::ground);
 	//c.p_id = e.ID();
 	c.on_collide = [=, &game, &o](u32 ID)
@@ -61,11 +61,11 @@ void egen_enemy(entity e, engine& game, world_coords pos)
 	c_collision& c = game.ecs.add<c_collision>(e);
 	c.disabled_sprites.push_back(1);
 	c_health& h = game.ecs.add<c_health>(e);
-	game.ecs.add<c_healthbar>(e);
+	h.has_healthbar = true;
 	c_damage& d = game.ecs.add<c_damage>(e);
 
-	c.set_team_signal(collision_flags::enemy);
-	c.set_team_detector(collision_flags::ally);
+	c.set_team_signal(c_collision::flags::enemy);
+	c.set_team_detector(c_collision::flags::ally);
 	c.on_collide = [=, &d](u32 ID)
 	{
 		d.enemy_ID = ID;
@@ -103,14 +103,16 @@ void setup_player(engine& game)
 	};
 */
 	c_collision& c = game.ecs.add<c_collision>(e);
-	c.set_team_detector(collision_flags::enemy);
-	c.set_tilemap_collision(collision_flags::ground);
+	c.set_team_detector(c_collision::flags::enemy);
+	c.set_tilemap_collision(c_collision::flags::ground);
 	c.on_collide = [e, &game](u32 ID)
 	{
 		if(ID == game.map_id()) {
 			auto& velocity = game.ecs.get<c_velocity>(e);
 			c_display& spr2 = game.ecs.get<c_display>(e);
-			spr2.move_by(sprite_coords(0, 0) - velocity.delta);
+			for (auto& sprite : spr2) {
+			    sprite.move_by(sprite_coords(0, 0) - velocity.delta);
+			}
 			printf("player collides with wall \n");
 		}
 	};
@@ -231,6 +233,8 @@ rect<f32> calc_size_percentages(rect<f32> parent, rect<f32> sizes ) {
 bool follower_moveevent(entity e, const event& ev, c_display& spr) {
 	sprite_coords dim = spr.get_dimensions().size;
 	sprite_coords p (ev.pos.x - (dim.x / 2), ev.pos.y - (dim.y / 2));
-	spr.move_to(p);
+	for (auto& sprite : spr) {
+		sprite.move_to(p);
+	}
 	return true;
 }

@@ -21,7 +21,7 @@ protected:
 };
 
 struct s_shooting {
-	using bullet_func = std::function<void(std::string, world_coords, world_coords, world_coords, world_coords, collision_flags)>;
+	using bullet_func = std::function<void(std::string, world_coords, world_coords, world_coords, world_coords, c_collision::flags)>;
 	struct bullet {
 		world_coords dimensions;
 		world_coords speed;
@@ -36,10 +36,13 @@ struct s_shooting {
 
 struct s_health : public texture_generator {
 public:
-	void run(pool<c_health>&, pool<c_damage>&, pool<c_healthbar>&, entity_manager&);
-	void update_healthbars(pool<c_healthbar>&, pool<c_health>&, pool<c_display>&);
+	void run(pool<c_health>&, pool<c_damage>&, entity_manager&);
+	void update_healthbars(pool<c_health>&, pool<c_display>&);
 private:
 	void set_entry(u32, f32);
+
+	std::array<u32, max_entities> healthbar_sprite_indices = std::array<u32, max_entities>();
+	std::array<u32, max_entities> healthbar_atlas_indices = std::array<u32, max_entities>();
 };
 
 struct s_text {

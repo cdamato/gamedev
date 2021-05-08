@@ -61,22 +61,31 @@ enum class render_layers : u8 {
     ui
 };
 
-struct sprite_data {
-    texture* tex = nullptr;
-    u16 size = 0;
-    u16 start = 0;
-    vertex* vertices = nullptr;
-    render_layers layer;
-
-    inline bool operator < (const sprite_data& rhs ) const { return tex < rhs.tex; }
-
-    rect<f32> get_dimensions();
-    void set_pos(sprite_coords, sprite_coords, size_t);
-
-    void set_tex_region(size_t, size_t);
-};
-
 
 static constexpr unsigned vertices_per_quad = 4;
+
+struct sprite_data {
+    texture* tex = nullptr;
+    render_layers layer;
+
+    sprite_data(size_t num_quads, render_layers layer_in) {
+        _vertices = std::vector<vertex>(num_quads * vertices_per_quad);
+        layer = layer_in;
+    }
+
+    const std::vector<vertex>& vertices() { return _vertices; };
+    rect<f32> get_dimensions();
+
+    void set_pos(sprite_coords, sprite_coords, size_t);
+    void set_tex_region(size_t, size_t);
+    void rotate(f32 theta);
+    void move_by(sprite_coords);
+    void move_to(sprite_coords);
+
+    inline bool operator < (const sprite_data& rhs ) const { return tex < rhs.tex; }
+private:
+    std::vector<vertex> _vertices {};
+};
+
 
 #endif //GRAPHICAL_TYPES_H

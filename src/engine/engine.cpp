@@ -25,10 +25,10 @@ void engine::run_tick() {
     renderer().set_camera(offset);
     renderer().clear_sprites();
     sprites.clear();
-    for (auto& sprite : ecs.components.get_pool(type_tag<c_display>())) {
-        for (int i = 0; i < sprite.num_sprites(); i++) {
-            if (sprite.sprites(i).layer == render_layers::null) continue;
-            sprites.emplace(sprite.sprites(i));
+    for (auto& display : ecs.components.get_pool(type_tag<c_display>())) {
+        for (auto& sprite : display) {
+            if (sprite.layer == render_layers::null) continue;
+            sprites.emplace(sprite);
         }
     }
 
@@ -230,7 +230,7 @@ engine::engine()  : settings(), window(settings){
 #endif //OPENGL
 
     ecs.systems.shooting.bullet_types.push_back(s_shooting::bullet{world_coords(0.3, 0.6), world_coords(0.25, 0.25), "bullet"});
-    ecs.systems.shooting.shoot = [this] (std::string s, world_coords d, world_coords v, world_coords o, world_coords t, collision_flags a) {
+    ecs.systems.shooting.shoot = [this] (std::string s, world_coords d, world_coords v, world_coords o, world_coords t, c_collision::flags a) {
         create_entity(egen_bullet, s, d, v, o, t, a);
     };
 
@@ -249,7 +249,7 @@ engine::engine()  : settings(), window(settings){
     for(int i = 0; i < 36; i++) {
         u32 h = rand() % 3;
         if (h == 2) continue;
-        inv.data.add(i, item{h, 0});
+        inv.data.add(i, c_inventory::item{h, 0});
     }
 
     renderer().set_viewport(settings.resolution);

@@ -23,9 +23,9 @@ void renderer_base::render_layer(std::multiset<sprite_data> sprites) {
             layer = sprite.layer;
         }
 
-        int quads_remaining = sprite.size;
+        int quads_remaining = sprite.vertices().size() / vertices_per_quad;
         while (quads_remaining > 0) {
-            const vertex* src_ptr = sprite.vertices +  (sprite.size - quads_remaining)  * VERTICES_PER_QUAD;
+            const vertex* src_ptr = sprite.vertices().data() +  ((sprite.vertices().size() / vertices_per_quad) - quads_remaining)  * VERTICES_PER_QUAD;
             vertex* dest_ptr = mapped_vertex_buffer + quads_batched * VERTICES_PER_QUAD;
 
             int quads_to_batch = std::min(NUM_QUADS - quads_batched, size_t(quads_remaining));
