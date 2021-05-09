@@ -41,7 +41,6 @@ public:
 struct window_impl {
     std::function<void(event&)> event_callback;
     std::function<void(screen_coords)> resize_callback;
-    bool renderer_busy = false;
     bool fullscreen = false;
 	bool update_resolution = true; // Update resolution internally on the next tick
     screen_coords resolution;
@@ -50,23 +49,13 @@ struct window_impl {
     virtual void swap_buffers(renderer_base&) = 0;
     virtual screen_coords get_drawable_resolution() = 0;
     virtual ~window_impl() {}
+	bool renderer_busy() { return _renderer_busy; }
+protected:
+	bool _renderer_busy = false;
 };
 
-class window_manager : no_copy, no_move {
-public:
-	window_manager(settings_manager& settings);
+void set_window_impl(std::unique_ptr<window_impl>&, settings_manager&);
 
-    bool poll_events() { return window_context.get()->poll_events(); };
-    bool renderer_busy() { return window_context.get()->renderer_busy; }
-    void swap_buffers(renderer_base& r) { window_context.get()->swap_buffers(r); };
-
-	void set_fullscreen(bool);
-	void set_vsync(bool);
-    void set_event_callback(std::function<void(event&)> callback) { window_context.get()->event_callback = callback; }
-    void set_resize_callback(std::function<void(screen_coords)> callback) { window_context.get()->resize_callback = callback; }
-private:
-    std::unique_ptr<window_impl> window_context;
-};
 
 typedef void (*logic_func)(engine&);
 class logic_manager {
@@ -81,11 +70,11 @@ private:
 class engine {
 public:
     settings_manager settings;
-	window_manager window;
 	ecs_engine ecs;
 	ui_manager ui;
     logic_manager logic;
 	renderer_base& renderer() { return *_renderer.get(); }
+	window_impl& window() { return *_window.get(); }
 
 	engine();
 	bool process_events();
@@ -110,6 +99,7 @@ public:
     std::bitset<8> command_states;
 private:
     std::unique_ptr<renderer_base> _renderer;
+    std::unique_ptr<window_impl> _window;
 };
 
 

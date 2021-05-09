@@ -7,7 +7,6 @@
 
 static constexpr unsigned VERTICES_PER_QUAD = 4;
 static constexpr unsigned NUM_QUADS = 1024;
-static constexpr unsigned buffer_size = NUM_QUADS * VERTICES_PER_QUAD * sizeof(vertex);
 
 void renderer_base::clear_sprites() {}
 
@@ -26,7 +25,7 @@ void renderer_base::render_layer(std::multiset<sprite_data> sprites) {
         int quads_remaining = sprite.vertices().size() / vertices_per_quad;
         while (quads_remaining > 0) {
             const vertex* src_ptr = sprite.vertices().data() +  ((sprite.vertices().size() / vertices_per_quad) - quads_remaining)  * VERTICES_PER_QUAD;
-            vertex* dest_ptr = mapped_vertex_buffer + quads_batched * VERTICES_PER_QUAD;
+            vertex* dest_ptr = batching_buffer + quads_batched * VERTICES_PER_QUAD;
 
             int quads_to_batch = std::min(NUM_QUADS - quads_batched, size_t(quads_remaining));
             int bytes_to_batch = quads_to_batch * VERTICES_PER_QUAD * sizeof(vertex);
@@ -212,7 +211,7 @@ public:
 
 
 vertex* map_buffer() noexcept {
-    glBufferData(GL_ARRAY_BUFFER, renderer_base::buffer_size, nullptr, GL_STREAM_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, buffer_size, nullptr, GL_STREAM_DRAW);
     return static_cast<vertex*>(glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY));
 }
 
@@ -229,10 +228,10 @@ void renderer_gl::render_batch(texture* current_tex, render_layers layer) {
     shader& shader = data->get_shader(layer);
     shader.update_uniform("z_index", current_tex->z_index);
 
-    mapped_vertex_buffer = unmap_buffer();
+    batching_buffer = unmap_buffer();
     glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(quads_batched * 6),
                    GL_UNSIGNED_SHORT, (void*) 0);
-    mapped_vertex_buffer = map_buffer();
+    batching_buffer = map_buffer();
     quads_batched = 0;
 }
 shader& renderer_gl::impl::get_shader(render_layers layer) {
@@ -320,7 +319,7 @@ renderer_gl::renderer_gl() {
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), (void*) (sizeof(sprite_coords)));
 
-    mapped_vertex_buffer = map_buffer();
+    batching_buffer = map_buffer();
 }
 
 void renderer_gl::set_viewport(screen_coords screen_size) {
@@ -374,7 +373,7 @@ texture* renderer_software::add_texture(std::string name) {
 
 renderer_software::renderer_software(screen_coords resolution_in) {
     load_textures();
-    mapped_vertex_buffer = new vertex[NUM_QUADS  * VERTICES_PER_QUAD];
+    batching_buffer = new vertex[NUM_QUADS  * VERTICES_PER_QUAD];
 }
 
 image rescale_texture(image source, size<u16> new_size) {
@@ -467,8 +466,8 @@ void renderer_software::render_batch(texture* current_tex, render_layers layer) 
 
     rect<f32> frame(point<f32>(0, 0), fb.size().to<f32>());
     for (size_t i = 0; i < quads_batched * 4; i+= 4) {
-        const auto tl_vert = transpose_vertex(matrix, mapped_vertex_buffer[i]);
-        const auto br_vert = transpose_vertex(matrix, mapped_vertex_buffer[i + 2]);
+        const auto tl_vert = transpose_vertex(matrix, batching_buffer[i]);
+        const auto br_vert = transpose_vertex(matrix, batching_buffer[i + 2]);
 
         rect<f32> sprite_rect(tl_vert.pos, br_vert.pos - tl_vert.pos);
         if (!AABB_collision(frame, sprite_rect)) continue;

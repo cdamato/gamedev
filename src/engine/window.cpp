@@ -88,7 +88,7 @@ struct software_backend : public x11_window {
             regen = false;
             return;
         }
-        renderer_busy = true;
+        _renderer_busy = true;
         XShmPutImage(dpy, win, gc, image, 0, 0, 0, 0, frame.size().x, frame.size().y, true);
 	}
 	void update_resolution() {
@@ -204,7 +204,7 @@ bool x11_window::poll_events() {
             }
             default:
                 if(xev.type == shm_completion_event) {
-                    renderer_busy = false;
+                    _renderer_busy = false;
                 }
         }
         event_callback(e);
@@ -381,20 +381,15 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) 
 #endif //_WIN32
 
 
-void window_manager::set_vsync(bool state) {}
-void window_manager::set_fullscreen(bool state) {}
-
-
-window_manager::window_manager(settings_manager& settings) {
+void set_window_impl(std::unique_ptr<window_impl>& window, settings_manager& settings) {
 #if OPENGL
     if (settings.flags.test(window_flags::use_software_render)) {
-        window_context = std::unique_ptr<window_impl>(new software_backend(settings.resolution));
+        window = std::unique_ptr<window_impl>(new software_backend(settings.resolution));
     } else {
-        window_context = std::unique_ptr<window_impl>(new gl_backend(settings.resolution));
+        window = std::unique_ptr<window_impl>(new gl_backend(settings.resolution));
     }
 #else
-    window_context = std::unique_ptr<window_impl>(new software_backend(settings.resolution));
+    window = std::unique_ptr<window_impl>(new software_backend(settings.resolution));
 #endif //OPENGL
-    settings.resolution = window_context.get()->get_drawable_resolution();
-    set_vsync(settings.flags.test(window_flags::vsync));
+    settings.resolution = window.get()->get_drawable_resolution();
 }

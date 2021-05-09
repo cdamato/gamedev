@@ -6,6 +6,8 @@
 #include <string>
 #include <common/graphical_types.h>
 
+constexpr unsigned quads_in_buffer = 1024;
+constexpr unsigned buffer_size = quads_in_buffer * vertices_per_quad * sizeof(vertex);
 
 class renderer_base : no_copy, no_move {
 public:
@@ -21,13 +23,10 @@ public:
 
     virtual void update_texture_data(texture*) = 0;
     texture* get_texture(std::string name);
-
-    static constexpr unsigned quads_in_buffer = 1024;
-    static constexpr unsigned buffer_size = quads_in_buffer * vertices_per_quad * sizeof(vertex);
 protected:
     std::array<texture, 2048> textures;
     std::unordered_map<std::string, u32> texture_map;
-    vertex* mapped_vertex_buffer = nullptr;
+    vertex* batching_buffer = nullptr;
     size_t quads_batched = 0;
 
     virtual void render_batch(texture*, render_layers) = 0;

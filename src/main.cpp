@@ -152,10 +152,9 @@ int main() {
         }
 
 
-        if (!w.window.renderer_busy()) {
+        if (!w.window().renderer_busy()) {
             numframes++;
             w.render();
-
         }
     }
     return 0;

@@ -49,7 +49,7 @@ void engine::destroy_entity(entity e) {
 void engine::render() {
     renderer().clear_screen();
     renderer().render_layer(sprites);
-    window.swap_buffers(renderer());
+    window().swap_buffers(renderer());
 }
 
 void logic_manager::add(logic_func func) {
@@ -211,14 +211,15 @@ bool process_event(event& e, engine& g) {
 
 
 bool engine::process_events() {
-    return window.poll_events();
+    return window().poll_events();
 }
 
-engine::engine()  : settings(), window(settings){
+engine::engine() {
 
+    set_window_impl(_window, settings);
     printf("Window Initialized\n");
-    window.set_event_callback([this](event& ev) { process_event(ev, *this); });
-    window.set_resize_callback([this](screen_coords size) { renderer().set_viewport(size); });
+    window().event_callback = [this](event& ev) { process_event(ev, *this); };
+    window().resize_callback = [this](screen_coords size) { renderer().set_viewport(size); };
 #ifdef OPENGL
     if (settings.flags.test(window_flags::use_software_render)) {
         _renderer = std::unique_ptr<renderer_base>(new renderer_software(settings.resolution));
@@ -234,7 +235,7 @@ engine::engine()  : settings(), window(settings){
         create_entity(egen_bullet, s, d, v, o, t, a);
     };
 
-    window.swap_buffers(renderer());
+    window().swap_buffers(renderer());
     ecs._map_id = create_entity([&](entity, engine&){});
     ecs._player_id = create_entity([&](entity, engine&){});
     ecs.add<c_player>(ecs._player_id);
