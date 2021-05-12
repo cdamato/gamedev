@@ -37,7 +37,8 @@ ARM64:
 
 Coverage:
 	@mkdir -p "Build/Unit_Tests"
-	$(MAKE) -f make_impl BUILD_DIR=Build/Unit_Tests TARGET_EXE=test_suite SOURCE_DIRECTORIES="$(TEST_DIRS) $(SOURCE_DIRS)"  LIBS="freetype GLEW GL X11" CXXFLAGS_IN="--coverage" LIBRARY_DIR=/usr/local/lib
+	$(MAKE) -f make_impl BUILD_DIR=Build/Unit_Tests TARGET_EXE=test_suite SOURCE_DIRECTORIES="$(TEST_DIRS) $(SOURCE_DIRS)" LIBRARY_DIR=/usr/local/lib \
+	LIBS="$(LINUX_LIBS) gcov2" CXXFLAGS_IN="--coverage"
 
 clean: 
 	rm -rf Build/
