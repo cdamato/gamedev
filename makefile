@@ -1,4 +1,4 @@
-SOURCE_DIRS := src/common/ src/ecs/ src/engine/ src/renderer/ src/main/
+SOURCE_DIRS := src/common/ src/ecs/ src/engine/ src/display/ src/main/
 TEST_DIRS := tests/
 
 CPP_DEFINES :=

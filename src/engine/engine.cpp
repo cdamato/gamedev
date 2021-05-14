@@ -20,15 +20,14 @@ void engine::run_tick() {
         //handle_hover(a, *this);
     }
 
-    renderer().update_texture_data(ecs.systems.health.get_texture());
+    textures().update(ecs.systems.health.get_texture());
 
     renderer().set_camera(offset);
     renderer().clear_sprites();
-    sprites.clear();
     for (auto& display : ecs.components.get_pool(type_tag<c_display>())) {
         for (auto& sprite : display) {
             if (sprite.layer == render_layers::null) continue;
-            sprites.emplace(sprite);
+            renderer().add_sprite(sprite);
         }
     }
 
@@ -47,9 +46,7 @@ void engine::destroy_entity(entity e) {
 }
 
 void engine::render() {
-    renderer().clear_screen();
-    renderer().render_layer(sprites);
-    window().swap_buffers(renderer());
+    display.render();
 }
 
 void logic_manager::add(logic_func func) {
@@ -216,19 +213,10 @@ bool engine::process_events() {
 
 engine::engine() {
 
-    set_window_impl(_window, settings);
+    display.initialize(display::display_manager::display_types(settings.flags.test(window_flags::use_software_render)), settings.resolution);
     printf("Window Initialized\n");
     window().event_callback = [this](event& ev) { process_event(ev, *this); };
     window().resize_callback = [this](screen_coords size) { renderer().set_viewport(size); };
-#ifdef OPENGL
-    if (settings.flags.test(window_flags::use_software_render)) {
-        _renderer = std::unique_ptr<renderer_base>(new renderer_software(settings.resolution));
-    } else {
-        _renderer = std::unique_ptr<renderer_base>(new renderer_gl);
-    }
-#else
-    _renderer = std::unique_ptr<renderer_base>(new renderer_software(settings.resolution));
-#endif //OPENGL
 
     ecs.systems.shooting.bullet_types.push_back(s_shooting::bullet{world_coords(0.3, 0.6), world_coords(0.25, 0.25), "bullet"});
     ecs.systems.shooting.shoot = [this] (std::string s, world_coords d, world_coords v, world_coords o, world_coords t, c_collision::flags a) {
@@ -242,7 +230,7 @@ engine::engine() {
     ecs.add<c_mapdata>(map_id());
 
 
-    ecs.systems.health.set_texture(renderer().add_texture("healthbar_atlas"));
+    ecs.systems.health.set_texture(textures().add("healthbar_atlas"));
 
     auto& inv = ecs.add<c_inventory>(player_id());
     ecs.add<c_display>(player_id());

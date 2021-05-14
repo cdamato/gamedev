@@ -3,112 +3,108 @@
 #include <GL/glew.h>
 #include <assert.h>
 #include <cmath>
-#include "renderer.h"
+#include "display_impl.h"
+#include "display.h"
 
-static constexpr unsigned VERTICES_PER_QUAD = 4;
-static constexpr unsigned NUM_QUADS = 1024;
+namespace display {
+constexpr unsigned quads_in_buffer = 1024;
+constexpr unsigned buffer_size = quads_in_buffer * vertices_per_quad * sizeof(vertex);
 
-void renderer_base::clear_sprites() {}
 
-void renderer_base::render_layer(std::multiset<sprite_data> sprites) {
-    if (sprites.size() == 0 ) return;
-    texture* current_tex = (*sprites.begin()).tex;
-    render_layers layer = (*sprites.begin()).layer;
+texture* texture_manager::get(std::string name) { return &textures[texture_map[name]]; }
+texture* texture_manager::add(std::string name) {
+    u32 id = get_new_id();
+    texture* tex = &textures[id];
+    tex->id = id;
+    texture_map[name] = id;
+    return tex;
+}
 
-    for(auto sprite : sprites) {
+void load_pixel_data(texture* data, std::string filename) {
+    std::vector<unsigned char> pixels;
+    unsigned int width, height;
+    auto error = lodepng::decode(pixels, width, height, filename);
+
+    if (error)
+        printf("Error Loading texture: %s\n", lodepng_error_text(error));
+    data->image_data = image(pixels, size<u16>(width, height));
+}
+
+void texture_manager::load_textures() {
+    config_parser p("config/textures.txt");
+    auto d = p.parse();
+    for (auto it = d->begin(); it != d->end(); it++) {
+        const config_list* list = dynamic_cast<const config_list*>((&it->second)->get());
+        texture* tex = add(it->first);
+        load_pixel_data(tex, "textures/" + list->get<std::string>(0));
+        tex->regions = size<u16>(list->get<int>(1), list->get<int>(2));
+        tex->z_index = list->get<int>(3);
+        tex->scale_factor = list->get<int>(4);
+        update(tex);
+    }
+}
+
+
+void renderer::add_sprite(sprite_data& sprite) { batching_pool.emplace(sprite); }
+void renderer::clear_sprites() { batching_pool.clear(); }
+void renderer::render_layer(texture_manager& tm) {
+    if (batching_pool.size() == 0 ) return;
+    texture* current_tex = (*batching_pool.begin()).tex;
+    render_layers layer = (*batching_pool.begin()).layer;
+
+    for(auto sprite : batching_pool) {
         if (sprite.tex != current_tex) {
-            render_batch(current_tex, layer);
+            render_batch(current_tex, layer, tm);
             current_tex = sprite.tex;
             layer = sprite.layer;
         }
 
         int quads_remaining = sprite.vertices().size() / vertices_per_quad;
         while (quads_remaining > 0) {
-            const vertex* src_ptr = sprite.vertices().data() +  ((sprite.vertices().size() / vertices_per_quad) - quads_remaining)  * VERTICES_PER_QUAD;
-            vertex* dest_ptr = batching_buffer + quads_batched * VERTICES_PER_QUAD;
+            const vertex* src_ptr = sprite.vertices().data() +  ((sprite.vertices().size() / vertices_per_quad) - quads_remaining)  * vertices_per_quad;
+            vertex* dest_ptr = batching_buffer + quads_batched * vertices_per_quad;
 
-            int quads_to_batch = std::min(NUM_QUADS - quads_batched, size_t(quads_remaining));
-            int bytes_to_batch = quads_to_batch * VERTICES_PER_QUAD * sizeof(vertex);
+            int quads_to_batch = std::min(quads_in_buffer - quads_batched, size_t(quads_remaining));
+            int bytes_to_batch = quads_to_batch * vertices_per_quad * sizeof(vertex);
 
             quads_remaining -= quads_to_batch;
             quads_batched += quads_to_batch;
 
             memcpy(dest_ptr, src_ptr, bytes_to_batch);
 
-            if (quads_batched == NUM_QUADS) {
+            if (quads_batched == quads_in_buffer) {
                 current_tex = sprite.tex;
                 layer = sprite.layer;
-                render_batch(current_tex,layer);
+                render_batch(current_tex,layer, tm);
             }
         }
     }
-    render_batch(current_tex, layer);
+    render_batch(current_tex, layer, tm);
 }
-
-
-texture* renderer_base::get_texture(std::string name) { return &textures[texture_map[name]]; }
-
-
-
-void load_pixel_data(texture* data, std::string filename) {
-    std::vector<unsigned char> pixels;
-    unsigned int width;
-    unsigned int height;
-    auto error = lodepng::decode(pixels, width, height, filename);
-
-    if (error)
-        printf("Error Loading texture: %s\n", lodepng_error_text(error));
-    // With the file's data in hand, do the actual setting
-    data->image_data = image(pixels, size<u16>(width, height));
-}
-
-
-void renderer_base::load_textures() {
-    config_parser p("config/textures.txt");
-    auto d = p.parse();
-    for (auto it = d->begin(); it != d->end(); it++) {
-        const config_list* list = dynamic_cast<const config_list*>((&it->second)->get());
-        texture* tex = add_texture(it->first);
-        load_pixel_data(tex, "textures/" + list->get<std::string>(0));
-        tex->regions = size<u16>(list->get<int>(1), list->get<int>(2));
-        tex->z_index = list->get<int>(3);
-        tex->scale_factor = list->get<int>(4);
-        update_texture_data(tex);
-    }
-}
-
-
-
-
-
 
 
 
 
 #ifdef OPENGL
 
-
-
-void bind_texture(texture* tex) {
+void texture_manager_gl::update(texture* tex) {
+    unsigned data_type = tex->is_greyscale ? 0x1903 : GL_RGBA;
     glBindTexture(GL_TEXTURE_2D, tex->id);
+    glTexImage2D(GL_TEXTURE_2D, 0, data_type, tex->image_data.size().x, tex->image_data.size().y, 0, data_type, GL_UNSIGNED_BYTE, tex->image_data.data().data());
+    glGenerateMipmap(GL_TEXTURE_2D);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
 }
 
-class shader : no_copy, no_move
-{
-    u32 _ID;
-    std::unordered_map<std::string, int> attributes = std::unordered_map<std::string, int>();
-public:
-    shader(u32 vert, u32 frag);
-    ~shader();
-    void register_uniform(std::string name);
-    void bind();
-    template <typename... Args>
-    void update_uniform(std::string name, Args... args);
-};
+u32 texture_manager_gl::get_new_id() {
+    u32 id;
+    glGenTextures(1, &id);
+    return id;
+}
 
-
-
-shader::shader(u32 vert, u32 frag) {
+renderer_gl::shader::shader(u32 vert, u32 frag) {
     _ID = glCreateProgram();
     glAttachShader(_ID, vert);
     glAttachShader(_ID, frag);
@@ -117,17 +113,17 @@ shader::shader(u32 vert, u32 frag) {
     glDetachShader(_ID, frag);
 }
 
-shader::~shader() {
+renderer_gl::shader::~shader() {
     glDeleteProgram(_ID);
 };
 
-void shader::register_uniform(std::string name){
+void renderer_gl::shader::register_uniform(std::string name){
     bind();
     attributes[name] = glGetUniformLocation(_ID, name.c_str());
 };
 
 template <typename... Args>
-void shader::update_uniform(std::string name, Args... args) {
+void renderer_gl::shader::update_uniform(std::string name, Args... args) {
     bind();
     if constexpr (sizeof...(args) == 3)
         glUniform3f(attributes[name], args...);
@@ -141,7 +137,7 @@ void shader::update_uniform(std::string name, Args... args) {
         }
     }
 }
-void shader::bind() {
+void renderer_gl::shader::bind() {
     glUseProgram(_ID);
 };
 
@@ -177,37 +173,12 @@ u32 gen_shader_stage(u32 type, std::string filename) {
     return ID;
 }
 
-shader gen_map_shader() {
-    u32 frag = gen_shader_stage(GL_FRAGMENT_SHADER, "shaders/shader.frag");
-    u32 vert= gen_shader_stage (GL_VERTEX_SHADER, "shaders/world.vert");
-    return shader(frag, vert);
+renderer_gl::shader renderer_gl::gen_shader(std::string vert_filename, std::string frag_filename) {
+    u32 frag = gen_shader_stage(GL_FRAGMENT_SHADER, frag_filename);
+    u32 vert= gen_shader_stage (GL_VERTEX_SHADER, vert_filename);
+    return renderer_gl::shader(frag, vert);
 }
 
-shader gen_ui_shader() {
-    u32 frag = gen_shader_stage(GL_FRAGMENT_SHADER, "shaders/shader.frag");
-    u32 vert= gen_shader_stage (GL_VERTEX_SHADER, "shaders/ui.vert");
-    return shader(frag, vert);
-}
-
-shader gen_text_shader() {
-    u32 frag = gen_shader_stage(GL_FRAGMENT_SHADER, "shaders/text.frag");
-    u32 vert= gen_shader_stage (GL_VERTEX_SHADER, "shaders/ui.vert");
-    return shader(frag, vert);
-}
-
-
-
-class renderer_gl::impl {
-public:
-    shader& get_shader(render_layers layer);
-
-    shader text_shader = gen_text_shader();
-    shader ui_shader = gen_ui_shader();
-    shader map_shader = gen_map_shader();
-
-    size<f32> viewport;
-    std::vector<f32> camera = { 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1 };
-};
 
 
 vertex* map_buffer() noexcept {
@@ -220,12 +191,12 @@ vertex* unmap_buffer() noexcept {
     return nullptr;
 }
 
-void renderer_gl::render_batch(texture* current_tex, render_layers layer) {
+void renderer_gl::render_batch(texture* current_tex, render_layers layer, texture_manager&) {
     if(quads_batched == 0) {
         return;
     }
-    bind_texture(current_tex);
-    shader& shader = data->get_shader(layer);
+    glBindTexture(GL_TEXTURE_2D, current_tex->id);
+    renderer_gl::shader& shader = get_shader(layer);
     shader.update_uniform("z_index", current_tex->z_index);
 
     batching_buffer = unmap_buffer();
@@ -234,7 +205,7 @@ void renderer_gl::render_batch(texture* current_tex, render_layers layer) {
     batching_buffer = map_buffer();
     quads_batched = 0;
 }
-shader& renderer_gl::impl::get_shader(render_layers layer) {
+renderer_gl::shader& renderer_gl::get_shader(render_layers layer) {
     if (layer == render_layers::sprites)
         return map_shader;
     if (layer == render_layers::ui)
@@ -246,34 +217,19 @@ shader& renderer_gl::impl::get_shader(render_layers layer) {
 
 
 
-void GLAPIENTRY MessageCallback( GLenum source, GLenum type, GLuint id,
-GLenum severity, GLsizei length, const GLchar* message, const void* userParam )
-{
-fprintf( stderr, "GL CALLBACK: %s type = 0x%x, severity = 0x%x, message = %s\n",
-( type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : "" ),
-type, severity, message );
+void GLAPIENTRY MessageCallback( GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam) {
+    fprintf( stderr, "GL CALLBACK: %s type = 0x%x, severity = 0x%x, message = %s\n", ( type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : "" ), type, severity, message );
 }
 
-texture* renderer_gl::add_texture(std::string name) {
-
-    u32 obj;
-    glGenTextures(1, &obj);
-    texture* tex = &textures[obj];
-    tex->id = obj;
-    texture_map[name] = obj;
-
-    return tex;
+void renderer_gl::initialize_opengl() {
+    glewInit();
+    glEnable(GL_DEBUG_OUTPUT);
+    glEnable(GL_BLEND);
+    glEnable(GL_DEPTH_TEST);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
 
 renderer_gl::renderer_gl() {
-    glewInit();
-    glEnable              ( GL_DEBUG_OUTPUT );
-    glEnable( GL_BLEND );
-    glEnable(GL_DEPTH_TEST);
-    glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
-    data = new impl;
-
-    load_textures();
     std::vector<u16> index_buffer = std::vector<u16>(quads_in_buffer * 6);
 
     size_t vert_index = 0;
@@ -300,16 +256,16 @@ renderer_gl::renderer_gl() {
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, index_buffer.size() * sizeof(u16), &index_buffer[0], GL_STATIC_DRAW);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elementbuffer);
 
-    data->get_shader(render_layers::text).register_uniform("color");
-    data->get_shader(render_layers::text).register_uniform("viewport");
-    data->get_shader(render_layers::text).register_uniform("z_index");
+    get_shader(render_layers::text).register_uniform("color");
+    get_shader(render_layers::text).register_uniform("viewport");
+    get_shader(render_layers::text).register_uniform("z_index");
 
-    data->get_shader(render_layers::ui).register_uniform("viewport");
-    data->get_shader(render_layers::ui).register_uniform("z_index");
+    get_shader(render_layers::ui).register_uniform("viewport");
+    get_shader(render_layers::ui).register_uniform("z_index");
 
-    data->get_shader(render_layers::sprites).register_uniform("viewport");
-    data->get_shader(render_layers::sprites).register_uniform("z_index");
-    data->get_shader(render_layers::sprites).register_uniform("viewMatrix");
+    get_shader(render_layers::sprites).register_uniform("viewport");
+    get_shader(render_layers::sprites).register_uniform("z_index");
+    get_shader(render_layers::sprites).register_uniform("viewMatrix");
 
     unsigned int ID;
     glGenBuffers(1, &ID);
@@ -324,18 +280,18 @@ renderer_gl::renderer_gl() {
 
 void renderer_gl::set_viewport(screen_coords screen_size) {
     glViewport(0, 0, screen_size.x, screen_size.y);
-    data->viewport = size<f32>(128.0f / screen_size.x, 128.0f / screen_size.y);
-    data->get_shader(render_layers::text).update_uniform("viewport", 2.0f / screen_size.x, 2.0f / screen_size.y);
-    data->get_shader(render_layers::ui).update_uniform("viewport", 2.0f / screen_size.x, 2.0f / screen_size.y);
-    data->get_shader(render_layers::sprites).update_uniform("viewport", data->viewport.x, data->viewport.y);
-    data->get_shader(render_layers::sprites).update_uniform("z_index", 0.0f);
-    data->get_shader(render_layers::sprites).update_uniform("viewMatrix", data->camera.data());
+    viewport = size<f32>(128.0f / screen_size.x, 128.0f / screen_size.y);
+    get_shader(render_layers::text).update_uniform("viewport", 2.0f / screen_size.x, 2.0f / screen_size.y);
+    get_shader(render_layers::ui).update_uniform("viewport", 2.0f / screen_size.x, 2.0f / screen_size.y);
+    get_shader(render_layers::sprites).update_uniform("viewport", viewport.x, viewport.y);
+    get_shader(render_layers::sprites).update_uniform("z_index", 0.0f);
+    get_shader(render_layers::sprites).update_uniform("viewMatrix", camera.data());
 }
 
 void renderer_gl::set_camera(vec2d<f32> delta) {
-    data->camera[12] = -((data->viewport.x) * delta.x);
-    data->camera[13] = (data->viewport.y) * delta.y;
-    data->get_shader(render_layers::sprites).update_uniform("viewMatrix", data->camera.data());
+    camera[12] = -((viewport.x) * delta.x);
+    camera[13] = (viewport.y) * delta.y;
+    get_shader(render_layers::sprites).update_uniform("viewMatrix", camera.data());
 }
 
 void renderer_gl::clear_screen()
@@ -345,36 +301,9 @@ void renderer_gl::clear_screen()
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 }
 
-void renderer_gl::update_texture_data(texture* tex) {
-    unsigned data_type = tex->is_greyscale ? 0x1903 : GL_RGBA;
-    bind_texture(tex);
-    glTexImage2D(GL_TEXTURE_2D, 0, data_type, tex->image_data.size().x, tex->image_data.size().y, 0, data_type, GL_UNSIGNED_BYTE, tex->image_data.data().data());
-    glGenerateMipmap(GL_TEXTURE_2D);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
-}
 
 #endif //OPENGL
 
-
-void renderer_software::clear_screen() {
-    memset(fb.data(), 0, fb.size().x * fb.size().y * 4);
-}
-
-texture* renderer_software::add_texture(std::string name) {
-    texture_map[name] = texture_counter;
-    texture* tex = &textures[texture_counter];
-    tex->id = texture_counter;
-    texture_counter++;
-    return tex;
-}
-
-renderer_software::renderer_software(screen_coords resolution_in) {
-    load_textures();
-    batching_buffer = new vertex[NUM_QUADS  * VERTICES_PER_QUAD];
-}
 
 image rescale_texture(image source, size<u16> new_size) {
     size<f32> upscale_ratio (new_size.x / source.size().x, new_size.y / source.size().y);
@@ -401,13 +330,30 @@ image rescale_texture(image source, size<u16> new_size) {
     return upscaled_tex;
 }
 
-void renderer_software::update_texture_data(texture* tex) {
+void texture_manager_software::update(texture* tex) {
     image& image_data = tex->image_data;
     if(image_data.size().x == 0 && image_data.size().y == 0) return;
 
     textures_2x_scaled[tex->id] = rescale_texture(image_data, size<u16>(image_data.size().x * 2, image_data.size().y * 2));
     textures_4x_scaled[tex->id] = rescale_texture(image_data, size<u16>(image_data.size().x * 4, image_data.size().y * 4));
 }
+
+u32 texture_manager_software::get_new_id() {
+    u32 id = texture_counter;
+    texture_counter++;
+    return id;
+}
+
+void renderer_software::clear_screen() {
+    memset(fb.data(), 0, fb.size().x * fb.size().y * 4);
+}
+
+
+renderer_software::renderer_software() {
+    batching_buffer = new vertex[quads_in_buffer * vertices_per_quad];
+}
+
+
 
 void renderer_software::set_viewport(screen_coords screen_size) {
     //resolution = screen_size;
@@ -445,11 +391,11 @@ void render_quad(void* fb_data, screen_coords fb_size, image& texture_data, vert
         auto dest_offset = fb_write_start + (y * fb_write_stride);
         auto src_offset = tex_read_start + (y * tex_read_stride);
 
-        memcpy(fb_data + dest_offset, texture_data.data().data() + src_offset, bytes_per_line);
+        memcpy(reinterpret_cast<char*>(fb_data) + dest_offset, texture_data.data().data() + src_offset, bytes_per_line);
     }
 }
 
-void renderer_software::render_batch(texture* current_tex, render_layers layer) {
+void renderer_software::render_batch(texture* current_tex, render_layers layer, texture_manager& tm_base) {
     std::array<f32, 6> matrix;
     switch (layer) {
         case render_layers::text:
@@ -461,9 +407,11 @@ void renderer_software::render_batch(texture* current_tex, render_layers layer) 
             matrix = std::array<f32, 6> { 64, 0, 64 * -camera.x,
                                           0, 64, 64 * -camera.y};
             break;
+        case render_layers::null:
+            return;
     }
 
-
+    auto& textures = dynamic_cast<texture_manager_software&>(tm_base);
     rect<f32> frame(point<f32>(0, 0), fb.size().to<f32>());
     for (size_t i = 0; i < quads_batched * 4; i+= 4) {
         const auto tl_vert = transpose_vertex(matrix, batching_buffer[i]);
@@ -476,9 +424,9 @@ void renderer_software::render_batch(texture* current_tex, render_layers layer) 
 
         // test if the sprite's render size is 4x the texture, 2x, 1x, or something else.
         if ((subregion_size * 4) - sprite_rect.size < size<f32>(0.01, 0.01)) {
-            render_quad(fb.data(), fb.size(), textures_4x_scaled[current_tex->id], tl_vert, br_vert);
+            render_quad(fb.data(), fb.size(), textures.textures_4x_scaled[current_tex->id], tl_vert, br_vert);
         } else if ((subregion_size * 2) - sprite_rect.size < size<f32>(0.01, 0.01)) {
-            render_quad(fb.data(), fb.size(), textures_2x_scaled[current_tex->id], tl_vert, br_vert);
+            render_quad(fb.data(), fb.size(), textures.textures_2x_scaled[current_tex->id], tl_vert, br_vert);
         } else if (subregion_size - sprite_rect.size < size<f32>(0.01, 0.01)) {
             render_quad(fb.data(), fb.size(), current_tex->image_data, tl_vert, br_vert);
         } else {
@@ -488,4 +436,5 @@ void renderer_software::render_batch(texture* current_tex, render_layers layer) 
 
     }
     quads_batched = 0;
+}
 }

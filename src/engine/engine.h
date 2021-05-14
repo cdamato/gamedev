@@ -2,7 +2,7 @@
 #define ENGINE_H
 
 #include <ecs/ecs.h>
-#include "renderer.h"
+#include <display/display_impl.h>
 #include <unordered_map>
 #include <memory>
 
@@ -38,25 +38,6 @@ public:
 	int framerate_multiplier = 2;
 };
 
-struct window_impl {
-    std::function<void(event&)> event_callback;
-    std::function<void(screen_coords)> resize_callback;
-    bool fullscreen = false;
-	bool update_resolution = true; // Update resolution internally on the next tick
-    screen_coords resolution;
-
-    virtual bool poll_events() = 0;
-    virtual void swap_buffers(renderer_base&) = 0;
-    virtual screen_coords get_drawable_resolution() = 0;
-    virtual ~window_impl() {}
-	bool renderer_busy() { return _renderer_busy; }
-protected:
-	bool _renderer_busy = false;
-};
-
-void set_window_impl(std::unique_ptr<window_impl>&, settings_manager&);
-
-
 typedef void (*logic_func)(engine&);
 class logic_manager {
 public:
@@ -73,15 +54,13 @@ public:
 	ecs_engine ecs;
 	ui_manager ui;
     logic_manager logic;
-	renderer_base& renderer() { return *_renderer.get(); }
-	window_impl& window() { return *_window.get(); }
+    display::texture_manager& textures() { return display.textures(); }
+    display::window_impl& window() { return display.get_window(); }
 
 	engine();
 	bool process_events();
 	void render();
 	void run_tick();
-
-    std::multiset<sprite_data> sprites;
 
 	template <typename f, typename... Args>
 	entity create_entity(f func, Args&&... args) {
@@ -98,10 +77,9 @@ public:
 	world_coords offset = world_coords(0, 0);
     std::bitset<8> command_states;
 private:
-    std::unique_ptr<renderer_base> _renderer;
-    std::unique_ptr<window_impl> _window;
+    display::renderer& renderer() { return display.get_renderer(); }
+    display::display_manager display;
 };
-
 
 
 void inventory_init(entity, engine&, entity, c_inventory& inv, screen_coords);

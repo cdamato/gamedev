@@ -1,103 +1,67 @@
 #include <common/parser.h>
-#include <fstream>
-#include "engine.h"
-
-#ifdef SSE
-#include <immintrin.h>
-#endif
-
-#ifdef __linux__
-#include <X11/Xlib.h>
-#include <X11/Xatom.h>
-#include <GL/glx.h>
-#include <sys/shm.h>
-#include <X11/extensions/XShm.h>
+#include <common/event.h>
 #include <cstring>
+#include <fstream>
+#include "display_impl.h"
 
-
-struct x11_window : public window_impl{
-	Display                 *dpy;
-	XVisualInfo             *vi;
-	Window                  win;
-	XWindowAttributes       gwa;
-
-	virtual ~x11_window() = default;
-	x11_window(screen_coords resolution);
-    screen_coords get_drawable_resolution() ;
-	bool poll_events();
-};
-
+namespace display {
+#ifdef __linux__
 #ifdef OPENGL
-struct gl_backend : public x11_window {
-	GLXContext glc;
-    gl_backend(screen_coords resolution) : x11_window(resolution) {
-        glc = glXCreateContext(dpy, vi, NULL, true);
-        glXMakeCurrent(dpy, win, glc);
-    }
-    void swap_buffers(renderer_base& r) {
-	    glXSwapBuffers(dpy, win);
-	}
-	void set_resolution(screen_coords coords) {
-        glViewport(0, 0, coords.x, coords.y);
-    }
-};
+void gl_backend::swap_buffers(renderer& r) { glXSwapBuffers(dpy, win); }
+void gl_backend::set_resolution(screen_coords coords) { glViewport(0, 0, coords.x, coords.y); }
+gl_backend::gl_backend(screen_coords resolution) : x11_window(resolution) {
+    glc = glXCreateContext(dpy, vi, NULL, true);
+    glXMakeCurrent(dpy, win, glc);
+}
 #endif //OPENGL
 
-struct software_backend : public x11_window {
-    XImage* image;
-  	GC                    gc;
-    XShmSegmentInfo shminfo;
-  	XGCValues             values;
-    bool regen = true;
 
-    // Note: this code has problems, as does the windows version.
-    // I believe the buffer needs to be recreated upon window resizing.
-    // This isn't as simple as it sounds - when XShmCreateImage is put in its own function, the code fails.
-    // This suggests UB, which I don't want to track down right now.
-    software_backend(screen_coords _resolution) : x11_window(_resolution) {
-        screen_coords resolution = get_drawable_resolution();
-        gc = XCreateGC(dpy, win, 0, &values);
-        image = XShmCreateImage(dpy, CopyFromParent, vi->depth, ZPixmap, nullptr, &shminfo, resolution.x, resolution.y);
-        shminfo.shmid = shmget(IPC_PRIVATE, static_cast<unsigned>(image->bytes_per_line * image->height), IPC_CREAT | 0666);
-        shminfo.readOnly = False;
-        shminfo.shmaddr = image->data = static_cast<char*>(shmat(shminfo.shmid, nullptr, 0));
-        if(XShmAttach(dpy, &shminfo) != True) {
-            fputs("Attaching shared memory failed", stderr);
-            exit(0);
-        }
+// Note: this code has problems, as does the windows version.
+// I believe the buffer needs to be recreated upon window resizing.
+// This isn't as simple as it sounds - when XShmCreateImage is put in its own function, the code fails.
+// This suggests UB, which I don't want to track down right now.
+software_backend::software_backend(screen_coords _resolution) : x11_window(_resolution) {
+    screen_coords resolution = get_drawable_resolution();
+    gc = XCreateGC(dpy, win, 0, &values);
+    image = XShmCreateImage(dpy, CopyFromParent, vi->depth, ZPixmap, nullptr, &shminfo, resolution.x, resolution.y);
+    shminfo.shmid = shmget(IPC_PRIVATE, static_cast<unsigned>(image->bytes_per_line * image->height), IPC_CREAT | 0666);
+    shminfo.readOnly = False;
+    shminfo.shmaddr = image->data = static_cast<char*>(shmat(shminfo.shmid, nullptr, 0));
+    if(XShmAttach(dpy, &shminfo) != True) {
+        fputs("Attaching shared memory failed", stderr);
+        exit(0);
     }
+}
 
-    ~software_backend() {
-        XShmDetach(dpy, &shminfo);
-        XFreeGC(dpy, gc);
-        shmdt(shminfo.shmaddr);
-        shmctl(shminfo.shmid, IPC_RMID, NULL);
+software_backend::~software_backend() {
+    XShmDetach(dpy, &shminfo);
+    XFreeGC(dpy, gc);
+    shmdt(shminfo.shmaddr);
+    shmctl(shminfo.shmid, IPC_RMID, NULL);
+}
+
+void software_backend::attach_shm(framebuffer& fb) {
+    screen_coords resolution = get_drawable_resolution();
+    fb = framebuffer(reinterpret_cast<u8*>(shminfo.shmaddr), resolution);
+    image->data = reinterpret_cast<char*>(fb.data());
+}
+
+void software_backend::swap_buffers(renderer& r) {
+    auto& frame = reinterpret_cast<renderer_software&>(r).get_framebuffer();
+    char* frame_buffer = reinterpret_cast<char*>(frame.data());
+    if (image->data != frame_buffer || regen == true) {
+        attach_shm(frame);
+        regen = false;
+        return;
     }
-
-    void attach_shm(framebuffer& fb) {
-        screen_coords resolution = get_drawable_resolution();
-        fb = framebuffer(reinterpret_cast<u8*>(shminfo.shmaddr), resolution);
-        image->data = reinterpret_cast<char*>(fb.data());
-    }
-
-    void swap_buffers(renderer_base& r) {
-        auto& frame = reinterpret_cast<renderer_software&>(r).get_framebuffer();
-        char* frame_buffer = reinterpret_cast<char*>(frame.data());
-        if (image->data != frame_buffer || regen == true) {
-            attach_shm(frame);
-            regen = false;
-            return;
-        }
-        _renderer_busy = true;
-        XShmPutImage(dpy, win, gc, image, 0, 0, 0, 0, frame.size().x, frame.size().y, true);
-	}
-	void update_resolution() {
-        image->width = resolution.x;
-        image->height = resolution.y;
-        regen = true;
-    }
-};
-
+    _renderer_busy = true;
+    XShmPutImage(dpy, win, gc, image, 0, 0, 0, 0, frame.size().x, frame.size().y, true);
+}
+void software_backend::update_resolution() {
+    image->width = resolution.x;
+    image->height = resolution.y;
+    regen = true;
+}
 x11_window::x11_window(screen_coords resolution) {
     int att[5] = { GLX_RGBA, GLX_DEPTH_SIZE, 24, GLX_DOUBLEBUFFER, None };
     dpy = XOpenDisplay(NULL);
@@ -216,24 +180,6 @@ bool x11_window::poll_events() {
 #endif //__linux__
 
 #ifdef _WIN32
-#define UNICODE
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#include <windowsx.h>
-
-LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
-
-struct win32_window : public window_impl, no_copy, no_move {
-	HWND hwnd;
-	HINSTANCE hInstance;
-	WNDCLASSEX wcx = {0};
-    bool quit_message = false;
-
-    screen_coords get_drawable_resolution();
-	bool poll_events();
-	win32_window(screen_coords resolution);
-};
-
 win32_window::win32_window(screen_coords resolution) {
 	hInstance = (HINSTANCE) GetModuleHandle(NULL);
 
@@ -269,56 +215,50 @@ screen_coords win32_window::get_drawable_resolution() {
 	return resolution;
 }
 
-struct gl_backend : public win32_window {
-	HGLRC gl_context = 0;
-    gl_backend(screen_coords resolution) : win32_window(resolution) {
-        PIXELFORMATDESCRIPTOR pfd =	{ sizeof(PIXELFORMATDESCRIPTOR), 1, PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER, PFD_TYPE_RGBA,
-    		32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 24, 8, 0, PFD_MAIN_PLANE, 0, 0, 0, 0};
-    	HDC hdc = GetDC(hwnd);
-		int pf = ChoosePixelFormat(hdc, &pfd);
-		SetPixelFormat(hdc,pf, &pfd);
-    	gl_context = wglCreateContext(hdc);
-    	wglMakeCurrent (hdc, gl_context);
+
+gl_backend::gl_backend(screen_coords resolution) : win32_window(resolution) {
+    PIXELFORMATDESCRIPTOR pfd = { sizeof(PIXELFORMATDESCRIPTOR), 1, PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER, PFD_TYPE_RGBA,
+    	32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 24, 8, 0, PFD_MAIN_PLANE, 0, 0, 0, 0};
+    HDC hdc = GetDC(hwnd);
+	int pf = ChoosePixelFormat(hdc, &pfd);
+	SetPixelFormat(hdc,pf, &pfd);
+	gl_context = wglCreateContext(hdc);
+	wglMakeCurrent (hdc, gl_context);
+}
+gl_backend::~gl_backend() {
+	HDC hdc = GetDC(hwnd);
+	wglMakeCurrent(hdc, NULL);
+	wglDeleteContext(gl_context);
+}
+void gl_backend::swap_buffers(renderer& r) {
+    SwapBuffers(GetDC(hwnd));
+}
+
+
+
+software_backend::software_backend(screen_coords resolution_in) : win32_window(resolution_in) {
+    bmih.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bmih.bmiHeader.biWidth = resolution.x;
+    bmih.bmiHeader.biHeight = -resolution.y;
+    bmih.bmiHeader.biPlanes = 1;
+    bmih.bmiHeader.biCompression = BI_RGB;
+    bmih.bmiHeader.biBitCount = 32;
+    bmih.bmiHeader.biSizeImage = resolution.x * resolution.y * 4;
+
+    bitmap = CreateDIBSection(GetDC(hwnd), &bmih, DIB_RGB_COLORS, reinterpret_cast<void**>(&fb_ptr), NULL, NULL);
+}
+
+void software_backend::attach_buffer(framebuffer& fb) {
+    fb = framebuffer(fb_ptr, resolution);
+}
+
+void software_backend::swap_buffers(renderer& r) {
+    auto& fb = reinterpret_cast<renderer_software&>(r).get_framebuffer();
+    if (fb_ptr != fb.data()) {
+        attach_buffer(fb);
     }
-    ~gl_backend() {
-    	HDC hdc = GetDC(hwnd);
-        wglMakeCurrent(hdc, NULL);
-		wglDeleteContext(gl_context);
-    }
-    void swap_buffers(renderer_base& r) {
-        SwapBuffers(GetDC(hwnd));
-	}
-};
-
-struct software_backend : public win32_window {
-    BITMAPINFO bmih;
-    HANDLE hdcMem;
-    HBITMAP bitmap;
-    u8* fb_ptr;
-
-    software_backend(screen_coords resolution_in) : win32_window(resolution_in) {
-        bmih.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-        bmih.bmiHeader.biWidth = resolution.x;
-        bmih.bmiHeader.biHeight = -resolution.y;
-        bmih.bmiHeader.biPlanes = 1;
-        bmih.bmiHeader.biCompression = BI_RGB;
-        bmih.bmiHeader.biBitCount = 32;
-        bmih.bmiHeader.biSizeImage = resolution.x * resolution.y * 4;
-
-        bitmap = CreateDIBSection(GetDC(hwnd), &bmih, DIB_RGB_COLORS, reinterpret_cast<void**>(&fb_ptr), NULL, NULL);
-    }
-
-    void attach_buffer(framebuffer& fb) {
-        fb = framebuffer(fb_ptr, resolution);
-    }
-
-    void swap_buffers(renderer_base& r) {
-        auto& fb = reinterpret_cast<renderer_software&>(r).get_framebuffer();
-        if (fb_ptr != fb.data())
-            attach_buffer(fb);
-        InvalidateRect(hwnd, NULL, FALSE);
-	}
-};
+    InvalidateRect(hwnd, NULL, FALSE);
+}
 
 win32_window* window_data(HWND hwnd) {
     return (win32_window*) GetWindowLongPtr(hwnd, GWLP_USERDATA);
@@ -379,17 +319,4 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) 
 	return 0;
 }
 #endif //_WIN32
-
-
-void set_window_impl(std::unique_ptr<window_impl>& window, settings_manager& settings) {
-#if OPENGL
-    if (settings.flags.test(window_flags::use_software_render)) {
-        window = std::unique_ptr<window_impl>(new software_backend(settings.resolution));
-    } else {
-        window = std::unique_ptr<window_impl>(new gl_backend(settings.resolution));
-    }
-#else
-    window = std::unique_ptr<window_impl>(new software_backend(settings.resolution));
-#endif //OPENGL
-    settings.resolution = window.get()->get_drawable_resolution();
 }
