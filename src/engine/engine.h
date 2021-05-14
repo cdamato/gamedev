@@ -51,7 +51,7 @@ private:
 class engine {
 public:
     settings_manager settings;
-	ecs_engine ecs;
+	ecs::ecs_engine ecs;
 	ui_manager ui;
     logic_manager logic;
     display::texture_manager& textures() { return display.textures(); }
@@ -82,6 +82,6 @@ private:
 };
 
 
-void inventory_init(entity, engine&, entity, c_inventory& inv, screen_coords);
+void inventory_init(entity, engine&, entity, ecs::c_inventory& inv, screen_coords);
 
 #endif //ENGINE_H

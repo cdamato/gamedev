@@ -7,7 +7,8 @@
 #include "components.h"
 #include "systems.h"
 
-
+class engine;
+namespace ecs {
 class entity_manager {
 public:
     entity_manager();
@@ -63,7 +64,7 @@ private:
 
 	void run_ecs(int framerate_multiplier);
 
-	friend class engine;
+	friend class ::engine;
 };
-
+}
 #endif //ECS_H

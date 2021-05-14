@@ -11,7 +11,7 @@
 #include <functional>
 #include <vector>
 
-
+namespace ecs {
 struct component {
 	entity parent = null_entity;
 };
@@ -227,5 +227,5 @@ public:
 private:
 	ALL_COMPONENTS(GENERATE_POOLS)
 };
-
+}
 #endif //COMPONENTS_H

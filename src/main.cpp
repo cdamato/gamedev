@@ -8,7 +8,7 @@
 void init_main_menu(engine& eng);
 void test_enemies_gone(engine& e) {
 
-    auto& enemy_pool = e.ecs.pool<c_enemy>();
+    auto& enemy_pool = e.ecs.pool<ecs::c_enemy>();
     if (enemy_pool.size() == 0) {
         e.logic.remove(&test_enemies_gone);
         init_main_menu(e);
@@ -54,13 +54,13 @@ void init_npc_hub(engine& g) {
     g.create_entity([&](entity e, engine& g) {
         basic_sprite_setup(e, g, render_layers::sprites, sc_origin, sc_size, point<f32>(0, 0), size<f32>(1, 1), "button");
 
-        c_inventory& inv = g.ecs.add<c_inventory>(e);
-        c_proximity& prox = g.ecs.add<c_proximity>(e);
-        prox.shape = c_proximity::shape::rectangle;
+        ecs::c_inventory& inv = g.ecs.add<ecs::c_inventory>(e);
+        ecs::c_proximity& prox = g.ecs.add<ecs::c_proximity>(e);
+        prox.shape = ecs::c_proximity::shape::rectangle;
         prox.origin = world_coords(sc_origin.x - 1, sc_origin.y);
         prox.radii = world_coords(sc_size.x + 2, sc_size.y + 1);
 
-        c_keyevent& on_activate = g.ecs.add<c_keyevent>(e);
+        ecs::c_keyevent& on_activate = g.ecs.add<ecs::c_keyevent>(e);
         on_activate.add_event([&](entity e, const event& ev, engine& g_in) {
             if (g_in.command_states.test(command::toggle_inventory)) {
                 g_in.destroy_entity(g_in.ui.focus);
@@ -83,12 +83,12 @@ void init_npc_hub(engine& g) {
     g.create_entity([&](entity e, engine& g) {
         //basic_sprite_setup(e, g, render_layers::sprites, dp_origin, dp_size, point<f32>(0, 0), size<f32>(1, 1), "button");
 
-        c_proximity& prox = g.ecs.add<c_proximity>(e);
-        prox.shape = c_proximity::shape::rectangle;
+        ecs::c_proximity& prox = g.ecs.add<ecs::c_proximity>(e);
+        prox.shape = ecs::c_proximity::shape::rectangle;
         prox.origin = world_coords(dp_origin.x - 1, dp_origin.y);
         prox.radii = world_coords(dp_size.x + 2, dp_size.y + 1);
 
-        c_keyevent& on_activate = g.ecs.add<c_keyevent>(e);
+        ecs::c_keyevent& on_activate = g.ecs.add<ecs::c_keyevent>(e);
         on_activate.add_event([&](entity e, const event& ev, engine& g_in) {
             g.destroy_entity(e);
             init_dungeon(g_in);
@@ -106,7 +106,7 @@ void init_main_menu(engine& eng) {
         basic_sprite_setup(e, g, render_layers::ui, sprite_coords(100, 500), sprite_coords(64, 64), sprite_coords(0, 0), size<f32>(1, 1), "button");
         make_widget(e, g, eng.ui.root);
 
-        c_mouseevent& on_click = g.ecs.add<c_mouseevent>(e);
+        ecs::c_mouseevent& on_click = g.ecs.add<ecs::c_mouseevent>(e);
         on_click.add_event([&](entity e, const event& ev, engine& g_in) {
             if (ev.active_state()) return true;
             g.destroy_entity(e);

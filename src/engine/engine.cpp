@@ -4,7 +4,7 @@
 
 
 void engine::run_tick() {
-    world_coords start_pos = ecs.get<c_display>(player_id()).get_dimensions().origin;
+    world_coords start_pos = ecs.get<ecs::c_display>(player_id()).get_dimensions().origin;
 
     ecs.run_ecs(settings.framerate_multiplier);
     ui.active_interact = ecs.systems.proxinteract.active_interact;
@@ -24,14 +24,14 @@ void engine::run_tick() {
 
     renderer().set_camera(offset);
     renderer().clear_sprites();
-    for (auto& display : ecs.components.get_pool(type_tag<c_display>())) {
+    for (auto& display : ecs.components.get_pool(ecs::type_tag<ecs::c_display>())) {
         for (auto& sprite : display) {
             if (sprite.layer == render_layers::null) continue;
             renderer().add_sprite(sprite);
         }
     }
 
-    world_coords end_pos = ecs.get<c_display>(player_id()).get_dimensions().origin;
+    world_coords end_pos = ecs.get<ecs::c_display>(player_id()).get_dimensions().origin;
     offset += (end_pos - start_pos);
 }
 
@@ -39,8 +39,8 @@ void engine::run_tick() {
 void engine::destroy_entity(entity e) {
     ecs.entities.mark_entity(e);
     // Recursively delete child widget entities
-    if (ecs.exists<c_widget>(e)) {
-        c_widget& w = ecs.get<c_widget>(e);
+    if (ecs.exists<ecs::c_widget>(e)) {
+        ecs::c_widget& w = ecs.get<ecs::c_widget>(e);
         for (auto child : w.children) destroy_entity(child);
     }
 }
@@ -96,10 +96,10 @@ settings_manager::settings_manager() {
 template <int type>
 entity at_cursor(entity e, engine& g, screen_coords cursor) {
     entity next = 65535;
-    c_widget& w = g.ecs.get<c_widget>(e);
+    ecs::c_widget& w = g.ecs.get<ecs::c_widget>(e);
     for (auto it = w.children.begin(); it != w.children.end(); it++) {
-        if (!g.ecs.exists<event_wrapper<type>>(*it)) continue;
-        if (test_collision(g.ecs.get<c_display>(*it).get_dimensions(), cursor.to<f32>())) next = *it;
+        if (!g.ecs.exists<ecs::event_wrapper<type>>(*it)) continue;
+        if (test_collision(g.ecs.get<ecs::c_display>(*it).get_dimensions(), cursor.to<f32>())) next = *it;
     }
 
     if (next == 65535) return e;
@@ -111,12 +111,12 @@ bool handle_button(event& e, engine& g) {
     entity dest = at_cursor<0>(g.ui.root, g, e.pos);
     bool success = false;
     if (dest != 65535 && dest != g.ui.root)
-        success = g.ecs.get<c_mouseevent>(dest).run_event(e);
+        success = g.ecs.get<ecs::c_mouseevent>(dest).run_event(e);
     if (success) return true;
 
     world_coords h (e.pos.x / 64.0f, e.pos.y / 64.0f);
     if (e.active_state() && g.in_dungeon) {
-        c_player& p = g.ecs.get<c_player>(g.player_id());
+        ecs::c_player& p = g.ecs.get<ecs::c_player>(g.player_id());
         p.shoot = true;
         p.target = h + g.offset;
         return true;
@@ -128,7 +128,7 @@ bool handle_keypress(event& e, engine& g) {
     auto it = g.settings.bindings.find(e.ID);
     if (it == g.settings.bindings.end()) {
         if (g.ui.focus == 65535) return false;
-        return g.ecs.get<c_keyevent>(g.ui.focus).run_event(e);
+        return g.ecs.get<ecs::c_keyevent>(g.ui.focus).run_event(e);
     }
 
     command command = it->second;
@@ -137,7 +137,7 @@ bool handle_keypress(event& e, engine& g) {
             if (!e.active_state())  return false;
             entity active = g.ui.active_interact;
             if (active == 65535)  return false;
-            return g.ecs.get<c_keyevent>(active).run_event(e);
+            return g.ecs.get<ecs::c_keyevent>(active).run_event(e);
         }
         case command::toggle_inventory: {
             if (!e.active_state()) return false;
@@ -147,14 +147,14 @@ bool handle_keypress(event& e, engine& g) {
                 g.ui.focus = 65535;
                 g.ui.cursor = 65535;
             } else {
-                g.create_entity(inventory_init, g.ui.root, g.ecs.get<c_inventory>(g.player_id()), point<u16>(100, 100));
+                g.create_entity(inventory_init, g.ui.root, g.ecs.get<ecs::c_inventory>(g.player_id()), point<u16>(100, 100));
             }
             g.command_states.set(command::toggle_inventory, !toggle_state);
             return false;
         }
         default: {  // Semantically, using the default case for movement is wrong, but I don't want to chain all four movement cases together
             g.command_states.set(command, e.active_state());
-            world_coords& velocity = g.ecs.get<c_velocity>(g.player_id()).delta;
+            world_coords& velocity = g.ecs.get<ecs::c_velocity>(g.player_id()).delta;
             velocity.x = 0.10 * (g.command_states.test(command::move_right) - g.command_states.test(command::move_left));
             velocity.y = 0.10 * (g.command_states.test(command::move_down) - g.command_states.test(command::move_up));
             return true;
@@ -164,7 +164,7 @@ bool handle_keypress(event& e, engine& g) {
 
 bool handle_cursor(event& e, engine& g) {
     g.ui.hover_timer.start();
-    if (g.ui.cursor != 65535) g.ecs.get<c_cursorevent>(g.ui.cursor).run_event(e);
+    if (g.ui.cursor != 65535) g.ecs.get<ecs::c_cursorevent>(g.ui.cursor).run_event(e);
 
     entity dest = at_cursor<1>(g.ui.root, g, e.pos);
     entity start = at_cursor<1>(g.ui.root, g, g.ui.last_position);
@@ -172,11 +172,11 @@ bool handle_cursor(event& e, engine& g) {
     g.ui.last_position = e.pos;
 
     if (start == g.ui.root && dest == g.ui.root) return false;
-    if (start == dest) return g.ecs.get<c_cursorevent>(start).run_event(e);
+    if (start == dest) return g.ecs.get<ecs::c_cursorevent>(start).run_event(e);
 
-    if (dest != 65535 && dest != g.ui.root) return g.ecs.get<c_cursorevent>(dest).run_event(e);
+    if (dest != 65535 && dest != g.ui.root) return g.ecs.get<ecs::c_cursorevent>(dest).run_event(e);
     e.set_active(false);
-    if (start != 65535 && start != g.ui.root) return g.ecs.get<c_cursorevent>(start).run_event(e);
+    if (start != 65535 && start != g.ui.root) return g.ecs.get<ecs::c_cursorevent>(start).run_event(e);
 
     return false;
 }
@@ -184,7 +184,7 @@ bool handle_cursor(event& e, engine& g) {
 bool handle_hover(event& e, engine& g) {
     entity dest = at_cursor<3>(g.ui.root, g, g.ui.last_position);
     if (dest == 65535 || dest == g.ui.root) return false;
-    return g.ecs.get<c_hoverevent>(dest).run_event(e);
+    return g.ecs.get<ecs::c_hoverevent>(dest).run_event(e);
 }
 
 
@@ -218,32 +218,32 @@ engine::engine() {
     window().event_callback = [this](event& ev) { process_event(ev, *this); };
     window().resize_callback = [this](screen_coords size) { renderer().set_viewport(size); };
 
-    ecs.systems.shooting.bullet_types.push_back(s_shooting::bullet{world_coords(0.3, 0.6), world_coords(0.25, 0.25), "bullet"});
-    ecs.systems.shooting.shoot = [this] (std::string s, world_coords d, world_coords v, world_coords o, world_coords t, c_collision::flags a) {
+    ecs.systems.shooting.bullet_types.push_back(ecs::s_shooting::bullet{world_coords(0.3, 0.6), world_coords(0.25, 0.25), "bullet"});
+    ecs.systems.shooting.shoot = [this] (std::string s, world_coords d, world_coords v, world_coords o, world_coords t, ecs::c_collision::flags a) {
         create_entity(egen_bullet, s, d, v, o, t, a);
     };
 
     window().swap_buffers(renderer());
     ecs._map_id = create_entity([&](entity, engine&){});
     ecs._player_id = create_entity([&](entity, engine&){});
-    ecs.add<c_player>(ecs._player_id);
-    ecs.add<c_mapdata>(map_id());
+    ecs.add<ecs::c_player>(ecs._player_id);
+    ecs.add<ecs::c_mapdata>(map_id());
 
 
     ecs.systems.health.set_texture(textures().add("healthbar_atlas"));
 
-    auto& inv = ecs.add<c_inventory>(player_id());
-    ecs.add<c_display>(player_id());
-    ecs.add<c_weapon_pool>(player_id());
+    auto& inv = ecs.add<ecs::c_inventory>(player_id());
+    ecs.add<ecs::c_display>(player_id());
+    ecs.add<ecs::c_weapon_pool>(player_id());
     for(int i = 0; i < 36; i++) {
         u32 h = rand() % 3;
         if (h == 2) continue;
-        inv.data.add(i, c_inventory::item{h, 0});
+        inv.data.add(i, ecs::c_inventory::item{h, 0});
     }
 
     renderer().set_viewport(settings.resolution);
     create_entity([&](entity e, engine& g){
-        g.ecs.add<c_widget>(e);
+        g.ecs.add<ecs::c_widget>(e);
         g.ui.root = e;
     });
 }

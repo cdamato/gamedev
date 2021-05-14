@@ -8,10 +8,10 @@
 
 
 void egen_bullet(entity e, engine& game, std::string texname,
-				 world_coords dimensions, world_coords speed, world_coords source, world_coords dest, c_collision::flags team)
+				 world_coords dimensions, world_coords speed, world_coords source, world_coords dest, ecs::c_collision::flags team)
 {
 
-	c_display& spr = game.ecs.add<c_display>(e);
+	ecs::c_display& spr = game.ecs.add<ecs::c_display>(e);
 	spr.add_sprite(1, render_layers::sprites);
 	spr.sprites(0).tex = game.textures().get(texname.c_str());
 	//spr._dimensions = rect<f32>(source, dimensions);
@@ -21,13 +21,13 @@ void egen_bullet(entity e, engine& game, std::string texname,
 
 
 
-	c_damage& o = game.ecs.add<c_damage>(e);
+	ecs::c_damage& o = game.ecs.add<ecs::c_damage>(e);
 	o.damage = 25;
 
-	c_collision& c = game.ecs.add<c_collision>(e);
+	ecs::c_collision& c = game.ecs.add<ecs::c_collision>(e);
 	c.set_team_signal(team);
-	c.set_tilemap_collision(c_collision::flags::ground);
-	c.set_tilemap_collision(c_collision::flags::air);
+	c.set_tilemap_collision(ecs::c_collision::flags::ground);
+	c.set_tilemap_collision(ecs::c_collision::flags::air);
 	//c.set_tilemap_collision(collision_types::ground);
 	//c.p_id = e.ID();
 	c.on_collide = [=, &game, &o](u32 ID)
@@ -41,7 +41,7 @@ void egen_bullet(entity e, engine& game, std::string texname,
 	float hypotLen = sqrt(pow(delta.x, 2) + pow(delta.y, 2));
 
 
-	c_velocity& v = game.ecs.add<c_velocity>(e);
+	ecs::c_velocity& v = game.ecs.add<ecs::c_velocity>(e);
 	v.delta = world_coords(speed.x * (delta.x / hypotLen), speed.y * (delta.y / hypotLen));
 }
 
@@ -49,23 +49,23 @@ void egen_bullet(entity e, engine& game, std::string texname,
 
 void egen_enemy(entity e, engine& game, world_coords pos)
 {
-    game.ecs.add<c_enemy>(e);
+    game.ecs.add<ecs::c_enemy>(e);
 
-	c_display& spr = game.ecs.add<c_display>(e);
+	ecs::c_display& spr = game.ecs.add<ecs::c_display>(e);
 	spr.add_sprite(1, render_layers::sprites);
 	spr.sprites(0).tex = game.textures().get("player");
 	spr.sprites(0).set_pos(pos, sprite_coords(1, 1), 0);
  	spr.sprites(0).set_tex_region(0, 0);
 
 
-	c_collision& c = game.ecs.add<c_collision>(e);
+	ecs::c_collision& c = game.ecs.add<ecs::c_collision>(e);
 	c.disabled_sprites.push_back(1);
-	c_health& h = game.ecs.add<c_health>(e);
+	ecs::c_health& h = game.ecs.add<ecs::c_health>(e);
 	h.has_healthbar = true;
-	c_damage& d = game.ecs.add<c_damage>(e);
+	ecs::c_damage& d = game.ecs.add<ecs::c_damage>(e);
 
-	c.set_team_signal(c_collision::flags::enemy);
-	c.set_team_detector(c_collision::flags::ally);
+	c.set_team_signal(ecs::c_collision::flags::enemy);
+	c.set_team_detector(ecs::c_collision::flags::ally);
 	c.on_collide = [=, &d](u32 ID)
 	{
 		d.enemy_ID = ID;
@@ -79,7 +79,7 @@ void egen_enemy(entity e, engine& game, world_coords pos)
 void setup_player(engine& game)
 {
 	entity e = game.player_id();
-	c_display& spr = game.ecs.add<c_display>(e);
+	ecs::c_display& spr = game.ecs.add<ecs::c_display>(e);
 	spr.add_sprite(1, render_layers::sprites);
 
 	spr.sprites(0).tex = game.textures().get("player");
@@ -87,12 +87,12 @@ void setup_player(engine& game)
 	spr.sprites(0).set_pos(sprite_coords(9, 9), sprite_coords(1, 1), 0);
 	spr.sprites(0).set_tex_region(0, 0);
 
-	game.ecs.add<c_velocity>(e);
-	game.ecs.add<c_weapon_pool>(e);
-	game.ecs.add<c_player>(e);
-	game.ecs.get<c_player>(e);
+	game.ecs.add<ecs::c_velocity>(e);
+	game.ecs.add<ecs::c_weapon_pool>(e);
+	game.ecs.add<ecs::c_player>(e);
+	game.ecs.get<ecs::c_player>(e);
 
-    game.ecs.get<c_inventory>(e);
+    game.ecs.get<ecs::c_inventory>(e);
 	//pool.weapons[0] = w.stats;
 	//pool.weapons[1] = c_weapon::data {bullet_types::standard, 75, 100} ;
 /*
@@ -102,14 +102,14 @@ void setup_player(engine& game)
 		e.mark_deletion();
 	};
 */
-	c_collision& c = game.ecs.add<c_collision>(e);
-	c.set_team_detector(c_collision::flags::enemy);
-	c.set_tilemap_collision(c_collision::flags::ground);
+	ecs::c_collision& c = game.ecs.add<ecs::c_collision>(e);
+	c.set_team_detector(ecs::c_collision::flags::enemy);
+	c.set_tilemap_collision(ecs::c_collision::flags::ground);
 	c.on_collide = [e, &game](u32 ID)
 	{
 		if(ID == game.map_id()) {
-			auto& velocity = game.ecs.get<c_velocity>(e);
-			c_display& spr2 = game.ecs.get<c_display>(e);
+			auto& velocity = game.ecs.get<ecs::c_velocity>(e);
+			ecs::c_display& spr2 = game.ecs.get<ecs::c_display>(e);
 			for (auto& sprite : spr2) {
 			    sprite.move_by(sprite_coords(0, 0) - velocity.delta);
 			}
@@ -122,7 +122,7 @@ void setup_player(engine& game)
 // remove B from A's children list
 void remove_child(entity a, entity b, engine& game) {
 
-	c_widget& w = game.ecs.get<c_widget>(a);
+	ecs::c_widget& w = game.ecs.get<ecs::c_widget>(a);
 	for (auto it =  w.children.begin(); it !=  w.children.end(); it++) {
 		if (*it == b) {
 			// Constant time delete optimization since order is meaningless,
@@ -134,8 +134,8 @@ void remove_child(entity a, entity b, engine& game) {
 }
 
 void make_parent(entity a, entity b, engine& game) {
-	c_widget& w_a = game.ecs.get<c_widget>(a);
-	c_widget& w_b = game.ecs.get<c_widget>(b);
+	ecs::c_widget& w_a = game.ecs.get<ecs::c_widget>(a);
+	ecs::c_widget& w_b = game.ecs.get<ecs::c_widget>(b);
 
 	if (w_b.parent != 65535)  remove_child(w_b.parent, b, game);
 
@@ -148,7 +148,7 @@ void make_parent(entity a, entity b, engine& game) {
 
 
 void basic_sprite_setup(entity e, engine& g, render_layers layer, sprite_coords origin, sprite_coords pos_size, point<f32> uv_origin, size<f32> uv_size, std::string texname) {
-    c_display& spr = g.ecs.add<c_display>(e);
+	ecs::c_display& spr = g.ecs.add<ecs::c_display>(e);
     spr.add_sprite(1, layer);
 	spr.sprites(0).tex = g.textures().get(texname.c_str());
     spr.sprites(0).set_pos(origin, pos_size, 0);
@@ -156,14 +156,14 @@ void basic_sprite_setup(entity e, engine& g, render_layers layer, sprite_coords 
 }
 
 void make_widget(entity e, engine& g, entity parent) {
-    g.ecs.add<c_widget>(e);
+    g.ecs.add<ecs::c_widget>(e);
     make_parent(parent, e, g);
 }
 
 
 
 bool selection_keypress(entity e, const event& ev, engine& g) {
-	c_selection& select = g.ecs.get<c_selection>(e);
+	ecs::c_selection& select = g.ecs.get<ecs::c_selection>(e);
 	if (ev.active_state() == false) return false;
 	// std::min is a fuckwad!
 	//int  real_zero = 0;
@@ -201,8 +201,8 @@ bool selection_keypress(entity e, const event& ev, engine& g) {
 	}
 
 	if (movement) {
-		c_display& spr = g.ecs.get<c_display>(e);
-		c_cursorevent& cve = g.ecs.get<c_cursorevent>(e);
+		ecs::c_display& spr = g.ecs.get<ecs::c_display>(e);
+		ecs::c_cursorevent& cve = g.ecs.get<ecs::c_cursorevent>(e);
 		u16 x_pos = (new_active.x * 64) + spr.get_dimensions().origin.x;
 		u16 y_pos = (new_active.y * 64) + spr.get_dimensions().origin.y;
 
@@ -230,7 +230,7 @@ rect<f32> calc_size_percentages(rect<f32> parent, rect<f32> sizes ) {
 }
 
 
-bool follower_moveevent(entity e, const event& ev, c_display& spr) {
+bool follower_moveevent(entity e, const event& ev, ecs::c_display& spr) {
 	sprite_coords dim = spr.get_dimensions().size;
 	sprite_coords p (ev.pos.x - (dim.x / 2), ev.pos.y - (dim.y / 2));
 	for (auto& sprite : spr) {

@@ -4,6 +4,7 @@
 #include "components.h"
 
 class sprite;
+namespace ecs {
 class entity_manager;
 
 
@@ -76,5 +77,5 @@ struct system_manager {
 	s_text text;
     s_proxinteract proxinteract;
 };
-
+}
 #endif //SYSTEM_H
