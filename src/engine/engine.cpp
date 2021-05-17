@@ -16,7 +16,7 @@ void engine::run_tick() {
     int h = ui.hover_timer.elapsed<timer::ms>().count();
     if (h >= 1500 && ui.hover_active == false) {
         ui.hover_active = true;
-        event a;
+        //event a;
         //handle_hover(a, *this);
     }
 
@@ -106,16 +106,18 @@ entity at_cursor(entity e, engine& g, screen_coords cursor) {
     return at_cursor<type>(next, g, cursor);
 }
 
-bool handle_button(event& e, engine& g) {
+bool handle_button(event& e_in, engine& g) {
     g.ui.hover_timer.start();
-    entity dest = at_cursor<0>(g.ui.root, g, e.pos);
+
+    auto& ev = dynamic_cast<event_mousebutton&>(e_in);
+    entity dest = at_cursor<event_mousebutton::id>(g.ui.root, g, ev.pos());
     bool success = false;
     if (dest != 65535 && dest != g.ui.root)
-        success = g.ecs.get<ecs::c_mouseevent>(dest).run_event(e);
+        success = g.ecs.get<ecs::c_mouseevent>(dest).run_event(ev);
     if (success) return true;
 
-    world_coords h (e.pos.x / 64.0f, e.pos.y / 64.0f);
-    if (e.active_state() && g.in_dungeon) {
+    world_coords h (ev.pos().x / 64.0f, ev.pos().y / 64.0f);
+    if (ev.release() && g.in_dungeon) {
         ecs::c_player& p = g.ecs.get<ecs::c_player>(g.player_id());
         p.shoot = true;
         p.target = h + g.offset;
@@ -124,8 +126,9 @@ bool handle_button(event& e, engine& g) {
     return false;
 }
 
-bool handle_keypress(event& e, engine& g) {
-    auto it = g.settings.bindings.find(e.ID);
+bool handle_keypress(event& e_in, engine& g) {
+    auto& e = dynamic_cast<event_keypress&>(e_in);
+    auto it = g.settings.bindings.find(e.key_id());
     if (it == g.settings.bindings.end()) {
         if (g.ui.focus == 65535) return false;
         return g.ecs.get<ecs::c_keyevent>(g.ui.focus).run_event(e);
@@ -134,13 +137,13 @@ bool handle_keypress(event& e, engine& g) {
     command command = it->second;
     switch (command) {
         case command::interact: {
-            if (!e.active_state())  return false;
+            if (e.release())  return false;
             entity active = g.ui.active_interact;
             if (active == 65535)  return false;
             return g.ecs.get<ecs::c_keyevent>(active).run_event(e);
         }
         case command::toggle_inventory: {
-            if (!e.active_state()) return false;
+            if (e.release()) return false;
             bool toggle_state = g.command_states.test(command::toggle_inventory) == true;
             if (toggle_state) {
                 g.destroy_entity(g.ui.focus);
@@ -152,32 +155,45 @@ bool handle_keypress(event& e, engine& g) {
             g.command_states.set(command::toggle_inventory, !toggle_state);
             return false;
         }
-        default: {  // Semantically, using the default case for movement is wrong, but I don't want to chain all four movement cases together
-            g.command_states.set(command, e.active_state());
-            world_coords& velocity = g.ecs.get<ecs::c_velocity>(g.player_id()).delta;
-            velocity.x = 0.10 * (g.command_states.test(command::move_right) - g.command_states.test(command::move_left));
-            velocity.y = 0.10 * (g.command_states.test(command::move_down) - g.command_states.test(command::move_up));
+        case command::move_left:
+            g.ecs.get<ecs::c_velocity>(g.player_id()).delta.x += e.release() ? 0.10 : -0.10;
             return true;
-        }
+        case command::move_right:
+            g.ecs.get<ecs::c_velocity>(g.player_id()).delta.x -= e.release() ? 0.10 : -0.10;
+            return true;
+        case command::move_up:
+            g.ecs.get<ecs::c_velocity>(g.player_id()).delta.y += e.release() ? 0.10 : -0.10;
+            return true;
+        case command::move_down:
+            g.ecs.get<ecs::c_velocity>(g.player_id()).delta.y -= e.release() ? 0.10 : -0.10;
+            return true;
     }
+    return true;
 }
 
-bool handle_cursor(event& e, engine& g) {
+bool handle_cursor(event& e_in, engine& g) {
+    auto& e = dynamic_cast<event_cursor&>(e_in);
     g.ui.hover_timer.start();
     if (g.ui.cursor != 65535) g.ecs.get<ecs::c_cursorevent>(g.ui.cursor).run_event(e);
 
-    entity dest = at_cursor<1>(g.ui.root, g, e.pos);
-    entity start = at_cursor<1>(g.ui.root, g, g.ui.last_position);
-
-    g.ui.last_position = e.pos;
-
+    entity dest = at_cursor<event_cursor::id>(g.ui.root, g, e.pos());
+    entity start = at_cursor<event_cursor::id>(g.ui.root, g, g.ui.last_position);
     if (start == g.ui.root && dest == g.ui.root) return false;
+
+
     if (start == dest) return g.ecs.get<ecs::c_cursorevent>(start).run_event(e);
 
-    if (dest != 65535 && dest != g.ui.root) return g.ecs.get<ecs::c_cursorevent>(dest).run_event(e);
-    e.set_active(false);
-    if (start != 65535 && start != g.ui.root) return g.ecs.get<ecs::c_cursorevent>(start).run_event(e);
+    // The cursor is switching between entities, give focus transition events
+    if (dest != 65535 && dest != g.ui.root) {
+        e.state = event_cursor::transition::enter;
+        return g.ecs.get<ecs::c_cursorevent>(dest).run_event(e);
+    }
+    if (start != 65535 && start != g.ui.root) {
+        e.state = event_cursor::transition::exit;
+        return g.ecs.get<ecs::c_cursorevent>(start).run_event(e);
+    }
 
+    g.ui.last_position = e.pos();
     return false;
 }
 
@@ -190,18 +206,19 @@ bool handle_hover(event& e, engine& g) {
 
 
 bool process_event(event& e, engine& g) {
-    if (e.type() == event_flags::null) return true;
-
     g.ui.hover_timer.start();
     g.ui.hover_active = false;
 
-    if (e.type() == event_flags::button_press)
-        handle_button(e, g);
-    else if (e.type() == event_flags::key_press)
-        handle_keypress(e, g);
-    else if (e.type() == event_flags::cursor_moved)
-        handle_cursor(e, g);
-    return true;
+    switch (e.event_id()) {
+        case event_keypress::id:
+            return handle_keypress(e, g);
+        case event_mousebutton::id:
+            return handle_button(e, g);
+        case event_cursor::id:
+            return handle_cursor(e, g);
+        default:
+            return true;
+    }
 }
 
 

@@ -107,8 +107,9 @@ void init_main_menu(engine& eng) {
         make_widget(e, g, eng.ui.root);
 
         ecs::c_mouseevent& on_click = g.ecs.add<ecs::c_mouseevent>(e);
-        on_click.add_event([&](entity e, const event& ev, engine& g_in) {
-            if (ev.active_state()) return true;
+        on_click.add_event([&](entity e, const event& ev_in, engine& g_in) {
+            const auto& ev = dynamic_cast<const event_mousebutton&>(ev_in);
+            if (!ev.release()) return true;
             g.destroy_entity(e);
             init_npc_hub(g_in);
             return true;

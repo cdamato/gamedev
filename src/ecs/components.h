@@ -183,9 +183,9 @@ public:
     bool run_event(event& e) {	return handler(e); }
 };
 
-using c_mouseevent = event_wrapper<0>;
-using c_cursorevent = event_wrapper<1>;
-using c_keyevent = event_wrapper<2>;
+using c_keyevent = event_wrapper<event_keypress::id>;
+using c_mouseevent = event_wrapper<event_mousebutton::id>;
+using c_cursorevent = event_wrapper<event_cursor::id>;
 using c_hoverevent = event_wrapper<3>;
 
 /*****************************/

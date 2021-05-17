@@ -116,45 +116,38 @@ screen_coords x11_window::get_drawable_resolution() {
 
 bool x11_window::poll_events() {
 	XEvent xev;
-	event e;
     const auto shm_completion_event = XShmGetEventBase(dpy) + ShmCompletion;
     while(XPending(dpy)) {
     	XNextEvent(dpy, &xev);
-    	e = event();
         switch (xev.type) {
-            case Expose:
-                XGetWindowAttributes(dpy, win, &gwa);
-                glViewport(0, 0, gwa.width, gwa.height);
-                break;
-
             case KeyPress:
-                e.set_active(true);
-                [[fallthrough]];
             case KeyRelease: {
-                e.ID = XLookupKeysym(&xev.xkey, 0);
-                e.set_type(event_flags::key_press);
+                event_keypress e(XLookupKeysym(&xev.xkey, 0), xev.type == KeyRelease);
+                event_callback(e);
+                break;
+            }
+            case ButtonPress:
+            case ButtonRelease: {
+                event_mousebutton ev(screen_coords(xev.xbutton.x, xev.xbutton.y), xev.type == ButtonPress);
+                event_callback(ev);
+                break;
+            }
+            case MotionNotify: {
+                event_cursor e(screen_coords(xev.xbutton.x, xev.xbutton.y));
+                event_callback(e);
                 break;
             }
             // Apparently, the X server sends window destroy messages this way?
             // I don't get it, why not have a dedicated window-destroy event?
             case ClientMessage:
                 return false;
-            case ButtonPress:
-                e.set_active(true);
-                [[fallthrough]];
-            case ButtonRelease:
-                e.set_type(event_flags::button_press);
-                e.pos =  screen_coords(xev.xbutton.x, xev.xbutton.y);;
-                break;
-            case MotionNotify:
-                e.pos =  screen_coords(xev.xbutton.x, xev.xbutton.y);;
-                e.set_type(event_flags::cursor_moved);
-                e.set_active(true);
+            case Expose:
+                XGetWindowAttributes(dpy, win, &gwa);
+                glViewport(0, 0, gwa.width, gwa.height);
                 break;
             case ConfigureNotify: {
                 XConfigureEvent xce = xev.xconfigure;
                 if (xce.width != resolution.x || xce.height != resolution.y) {
-
                     resolution = get_drawable_resolution();
                     printf("xce.x = %i, res.x = %i\n", xce.width, resolution.x);
                     resize_callback(resolution);
@@ -171,7 +164,6 @@ bool x11_window::poll_events() {
                     _renderer_busy = false;
                 }
         }
-        event_callback(e);
     }
 
 

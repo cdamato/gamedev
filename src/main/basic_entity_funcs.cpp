@@ -163,7 +163,7 @@ void make_widget(entity e, engine& g, entity parent) {
 
 
 bool selection_keypress(entity e, const event& ev, engine& g) {
-	ecs::c_selection& select = g.ecs.get<ecs::c_selection>(e);
+	/*ecs::c_selection& select = g.ecs.get<ecs::c_selection>(e);
 	if (ev.active_state() == false) return false;
 	// std::min is a fuckwad!
 	//int  real_zero = 0;
@@ -172,7 +172,7 @@ bool selection_keypress(entity e, const event& ev, engine& g) {
 
 	point<u16> new_active = select.active;
 	switch(ev.ID) {
-	/*case SDLK_LEFT:
+	case SDLK_LEFT:
 		new_active.x = std::max(static_cast<int>(select.active.x - 1), real_zero);
 		movement = true;
 		break;
@@ -197,7 +197,7 @@ bool selection_keypress(entity e, const event& ev, engine& g) {
 		mve.run_event(ev);
 		ev.set_active(false);
 		mve.run_event(ev);
-	}*/
+	}
 	}
 
 	if (movement) {
@@ -213,7 +213,7 @@ bool selection_keypress(entity e, const event& ev, engine& g) {
 		cve.run_event(e);
 
 	}
-	//set_box(select);
+	//set_box(select);*/
 	return true;
 }
 
@@ -230,9 +230,10 @@ rect<f32> calc_size_percentages(rect<f32> parent, rect<f32> sizes ) {
 }
 
 
-bool follower_moveevent(entity e, const event& ev, ecs::c_display& spr) {
+bool follower_moveevent(entity e, const event& ev_in, ecs::c_display& spr) {
+	auto& ev = dynamic_cast<const event_cursor&>(ev_in);
 	sprite_coords dim = spr.get_dimensions().size;
-	sprite_coords p (ev.pos.x - (dim.x / 2), ev.pos.y - (dim.y / 2));
+	sprite_coords p (ev.pos().x - (dim.x / 2), ev.pos().y - (dim.y / 2));
 	for (auto& sprite : spr) {
 		sprite.move_to(p);
 	}

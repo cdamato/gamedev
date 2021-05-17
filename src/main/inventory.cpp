@@ -71,9 +71,10 @@ void place_item(entity e, engine& g, ecs::c_selection& select, ecs::c_inventory&
     write_item_to_slot(select.active_index(), snap_to_grid(spr, select.active), e, held, g);
 }
 
-bool inventory_mouseevents(entity e, const event& ev,  engine& g, ecs::c_inventory& inv) {
+bool inventory_mouseevents(entity e, const event& ev_in,  engine& g, ecs::c_inventory& inv) {
 
-    if (ev.active_state()) return true;
+    auto& ev = dynamic_cast<const event_mousebutton&>(ev_in);
+    if (ev.release()) return true;
     ecs::c_selection& select = g.ecs.get<ecs::c_selection>(e);
     ecs::c_display& spr = g.ecs.get<ecs::c_display>(e);
 
@@ -92,13 +93,14 @@ bool inventory_mouseevents(entity e, const event& ev,  engine& g, ecs::c_invento
 }
 
 
-bool inventory_motion(entity e, const event& ev, engine& game) {
+bool inventory_motion(entity e, const event& ev_in, engine& game) {
     ecs::c_display& spr = game.ecs.get<ecs::c_display>(e);
     ecs::c_selection& select = game.ecs.get<ecs::c_selection>(e);
 
+    auto& ev = dynamic_cast<const event_cursor&>(ev_in);
     if (game.ui.cursor == e) {
         sprite_coords dim = spr.sprites(select.box_index).get_dimensions().size;
-        sprite_coords p (ev.pos.x - (dim.x / 2), ev.pos.y - (dim.y / 2));
+        sprite_coords p (ev.pos().x - (dim.x / 2), ev.pos().y - (dim.y / 2));
 
         auto dimensions = spr.sprites(select.box_index).get_dimensions().origin;
         point<u16> box_point = get_gridsquare(spr, dimensions);
@@ -112,10 +114,10 @@ bool inventory_motion(entity e, const event& ev, engine& game) {
 	size_t index = active.x + (active.y * select.grid_size.x);
 	spr.sprites(0).set_tex_region(0, index);
 
-	if (ev.active_state() == false) return true;
+	if (ev.state == event_cursor::transition::exit) return true;
 
 	// no idea what's going on here.
-	point<f32> bruh = ev.pos.to<f32>();
+	point<f32> bruh = ev.pos().to<f32>();
 	active = get_gridsquare(spr, bruh);
 	if (active.x >= select.grid_size.x || active.y >= select.grid_size.y) return true;
 
