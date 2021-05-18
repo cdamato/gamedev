@@ -60,8 +60,8 @@ void init_npc_hub(engine& g) {
         prox.origin = world_coords(sc_origin.x - 1, sc_origin.y);
         prox.radii = world_coords(sc_size.x + 2, sc_size.y + 1);
 
-        ecs::c_keyevent& on_activate = g.ecs.add<ecs::c_keyevent>(e);
-        on_activate.add_event([&](entity e, const event& ev, engine& g_in) {
+        ecs::c_event_callbacks& on_activate = g.ecs.add<ecs::c_event_callbacks>(e);
+        on_activate.add_callback<event_keypress::id>([&](entity e, const event& ev, engine& g_in) {
             if (g_in.command_states.test(command::toggle_inventory)) {
                 g_in.destroy_entity(g_in.ui.focus);
                 g.ui.focus = 65535;
@@ -88,8 +88,8 @@ void init_npc_hub(engine& g) {
         prox.origin = world_coords(dp_origin.x - 1, dp_origin.y);
         prox.radii = world_coords(dp_size.x + 2, dp_size.y + 1);
 
-        ecs::c_keyevent& on_activate = g.ecs.add<ecs::c_keyevent>(e);
-        on_activate.add_event([&](entity e, const event& ev, engine& g_in) {
+        ecs::c_event_callbacks& callbacks = g.ecs.add<ecs::c_event_callbacks>(e);
+        callbacks.add_callback<event_keypress::id>([&](entity e, const event& ev, engine& g_in) {
             g.destroy_entity(e);
             init_dungeon(g_in);
             return true;
@@ -106,8 +106,8 @@ void init_main_menu(engine& eng) {
         basic_sprite_setup(e, g, render_layers::ui, sprite_coords(100, 500), sprite_coords(64, 64), sprite_coords(0, 0), size<f32>(1, 1), "button");
         make_widget(e, g, eng.ui.root);
 
-        ecs::c_mouseevent& on_click = g.ecs.add<ecs::c_mouseevent>(e);
-        on_click.add_event([&](entity e, const event& ev_in, engine& g_in) {
+        auto& on_click = g.ecs.add<ecs::c_event_callbacks>(e);
+        on_click.add_callback<event_mousebutton::id>([&](entity e, const event& ev_in, engine& g_in) {
             const auto& ev = dynamic_cast<const event_mousebutton&>(ev_in);
             if (!ev.release()) return true;
             g.destroy_entity(e);

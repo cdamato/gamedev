@@ -50,7 +50,6 @@ private:
     size<f32> viewport;
     std::vector<f32> camera = { 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1 };
 };
-
 #endif //OPENGL
 
 class texture_manager_software : public texture_manager {

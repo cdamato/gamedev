@@ -21,6 +21,7 @@ void engine::run_tick() {
     }
 
     textures().update(ecs.systems.health.get_texture());
+    textures().update(ecs.systems.text.get_texture());
 
     renderer().set_camera(offset);
     renderer().clear_sprites();
@@ -98,7 +99,8 @@ entity at_cursor(entity e, engine& g, screen_coords cursor) {
     entity next = 65535;
     ecs::c_widget& w = g.ecs.get<ecs::c_widget>(e);
     for (auto it = w.children.begin(); it != w.children.end(); it++) {
-        if (!g.ecs.exists<ecs::event_wrapper<type>>(*it)) continue;
+        if (!g.ecs.exists<ecs::c_event_callbacks>(*it)) continue;
+        if (!g.ecs.get<ecs::c_event_callbacks>(*it).has_callback<type>()) continue;
         if (test_collision(g.ecs.get<ecs::c_display>(*it).get_dimensions(), cursor.to<f32>())) next = *it;
     }
 
@@ -113,7 +115,7 @@ bool handle_button(event& e_in, engine& g) {
     entity dest = at_cursor<event_mousebutton::id>(g.ui.root, g, ev.pos());
     bool success = false;
     if (dest != 65535 && dest != g.ui.root)
-        success = g.ecs.get<ecs::c_mouseevent>(dest).run_event(ev);
+        success = g.ecs.get<ecs::c_event_callbacks>(dest).run_event(ev);
     if (success) return true;
 
     world_coords h (ev.pos().x / 64.0f, ev.pos().y / 64.0f);
@@ -131,7 +133,8 @@ bool handle_keypress(event& e_in, engine& g) {
     auto it = g.settings.bindings.find(e.key_id());
     if (it == g.settings.bindings.end()) {
         if (g.ui.focus == 65535) return false;
-        return g.ecs.get<ecs::c_keyevent>(g.ui.focus).run_event(e);
+        return false;
+        // return g.ecs.get<ecs::c_event_callbacks>(g.ui.focus).run_event(e);
     }
 
     command command = it->second;
@@ -140,7 +143,7 @@ bool handle_keypress(event& e_in, engine& g) {
             if (e.release())  return false;
             entity active = g.ui.active_interact;
             if (active == 65535)  return false;
-            return g.ecs.get<ecs::c_keyevent>(active).run_event(e);
+            return g.ecs.get<ecs::c_event_callbacks>(active).run_event(e);
         }
         case command::toggle_inventory: {
             if (e.release()) return false;
@@ -174,23 +177,23 @@ bool handle_keypress(event& e_in, engine& g) {
 bool handle_cursor(event& e_in, engine& g) {
     auto& e = dynamic_cast<event_cursor&>(e_in);
     g.ui.hover_timer.start();
-    if (g.ui.cursor != 65535) g.ecs.get<ecs::c_cursorevent>(g.ui.cursor).run_event(e);
+    if (g.ui.cursor != 65535) g.ecs.get<ecs::c_event_callbacks>(g.ui.cursor).run_event(e);
 
     entity dest = at_cursor<event_cursor::id>(g.ui.root, g, e.pos());
     entity start = at_cursor<event_cursor::id>(g.ui.root, g, g.ui.last_position);
     if (start == g.ui.root && dest == g.ui.root) return false;
 
 
-    if (start == dest) return g.ecs.get<ecs::c_cursorevent>(start).run_event(e);
+    if (start == dest) return g.ecs.get<ecs::c_event_callbacks>(start).run_event(e);
 
     // The cursor is switching between entities, give focus transition events
     if (dest != 65535 && dest != g.ui.root) {
         e.state = event_cursor::transition::enter;
-        return g.ecs.get<ecs::c_cursorevent>(dest).run_event(e);
+        return g.ecs.get<ecs::c_event_callbacks>(dest).run_event(e);
     }
     if (start != 65535 && start != g.ui.root) {
         e.state = event_cursor::transition::exit;
-        return g.ecs.get<ecs::c_cursorevent>(start).run_event(e);
+        return g.ecs.get<ecs::c_event_callbacks>(start).run_event(e);
     }
 
     g.ui.last_position = e.pos();
@@ -200,7 +203,7 @@ bool handle_cursor(event& e_in, engine& g) {
 bool handle_hover(event& e, engine& g) {
     entity dest = at_cursor<3>(g.ui.root, g, g.ui.last_position);
     if (dest == 65535 || dest == g.ui.root) return false;
-    return g.ecs.get<ecs::c_hoverevent>(dest).run_event(e);
+    return g.ecs.get<ecs::c_event_callbacks>(dest).run_event(e);
 }
 
 
@@ -248,6 +251,7 @@ engine::engine() {
 
 
     ecs.systems.health.set_texture(textures().add("healthbar_atlas"));
+    ecs.systems.text.set_texture(textures().add("text_atlas"));
 
     auto& inv = ecs.add<ecs::c_inventory>(player_id());
     ecs.add<ecs::c_display>(player_id());

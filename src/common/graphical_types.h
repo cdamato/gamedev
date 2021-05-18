@@ -74,15 +74,16 @@ struct sprite_data {
     }
 
     const std::vector<vertex>& vertices() { return _vertices; };
-    rect<f32> get_dimensions();
+    rect<f32> get_dimensions(u8 quad_index = 255);
 
     void set_pos(sprite_coords, sprite_coords, size_t);
+    void set_uv(point<f32>, size<f32>, size_t);
     void set_tex_region(size_t, size_t);
     void rotate(f32 theta);
     void move_by(sprite_coords);
     void move_to(sprite_coords);
 
-    inline bool operator < (const sprite_data& rhs ) const { return tex < rhs.tex; }
+    inline bool operator < (const sprite_data& rhs ) const { return tex->z_index < rhs.tex->z_index; }
 private:
     std::vector<vertex> _vertices {};
 };

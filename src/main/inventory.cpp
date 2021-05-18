@@ -34,8 +34,12 @@ void write_item_to_slot(size_t index, sprite_coords pos, entity e, ecs::c_invent
 
     sprite_coords item_size = spr.sprites(select.box_index).get_dimensions().size;
     spr.sprites(1).set_pos(pos, item_size, index);
-
     spr.sprites(1).set_tex_region(item_in.ID, index);
+
+    auto& text = g.ecs.get<ecs::c_text>(e);
+    spr.sprites(text.sprite_index).set_pos(pos, item_size, index);
+    text.text_entries[index].quad_index = index;
+    text.text_entries[index].text = std::to_string(item_in.quantity);
 }
 
 void empty_slot(size_t index, sprite_coords pos, entity e, engine& g) {
@@ -44,6 +48,10 @@ void empty_slot(size_t index, sprite_coords pos, entity e, engine& g) {
 
     spr.sprites(select.box_index).layer = render_layers::null;
     spr.sprites(1).set_pos(pos, size(0.0f, 0.0f), index);
+
+    auto& text = g.ecs.get<ecs::c_text>(e);
+    spr.sprites(text.sprite_index).set_pos(point<f32>(0, 0), size<f32>(0, 0), index);
+    text.text_entries[index].text = "";
 }
 
 void place_item(entity e, engine& g, ecs::c_selection& select, ecs::c_inventory& inv, ecs::c_display& spr) {
@@ -134,9 +142,9 @@ void inventory_init(entity e, engine& g, entity parent, ecs::c_inventory& inv, s
 	make_parent(parent, e, g);
     ecs::c_selection& select = g.ecs.add<ecs::c_selection>(e);
 
-	g.ecs.add<ecs::c_mouseevent>(e).add_event(inventory_mouseevents, g, inv);
-	g.ecs.add<ecs::c_cursorevent>(e).add_event(inventory_motion, g);
-	g.ecs.add<ecs::c_keyevent>(e).add_event(selection_keypress, g);
+	auto& callbacks = g.ecs.add<ecs::c_event_callbacks>(e);
+	callbacks.add_callback<event_mousebutton::id>(inventory_mouseevents, g, inv);
+    callbacks.add_callback<event_cursor::id>(inventory_motion, g);
 
 	select.grid_size = size<u16>(9, 4);
 	sprite_coords element_size(64, 64);
@@ -156,6 +164,11 @@ void inventory_init(entity e, engine& g, entity parent, ecs::c_inventory& inv, s
     spr.sprites(select.box_index).set_pos(sprite_coords(0, 0), element_size, 0);
     spr.sprites(select.box_index).tex = g.textures().get("highlight");
     spr.sprites(select.box_index).set_tex_region(1, 0);
+
+
+    ecs::c_text& text = g.ecs.add<ecs::c_text>(e);
+    text.sprite_index = spr.add_sprite(num_grid_elements, render_layers::text);
+    text.text_entries = std::vector<ecs::c_text::text_entry>(num_grid_elements);
 
 
 	int index = 0;

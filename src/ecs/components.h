@@ -157,8 +157,12 @@ struct c_widget : public component {
 };
 
 struct c_text : public component {
+	struct text_entry {
+		u8 quad_index = 0;
+		std::string text;
+	};
 	u8 sprite_index = 0;
-	std::string text;
+	std::vector<text_entry> text_entries;
 };
 
 struct c_selection : public component {
@@ -168,48 +172,43 @@ struct c_selection : public component {
 	entity active_index() { return active.x + (active.y * grid_size.x); }
 };
 
-// A basic callback wrapper for UI event components
-template <int h>
-class event_wrapper : public component {
-    std::function<bool(event&)> handler;
+// A callback wrapper for UI events
+class c_event_callbacks : public component {
+    marked_storage<std::function<bool(event&)>, 4> handlers;
     bool active = false;
 public:
-    template <typename func_type, typename... Args>
-    void add_event(func_type func, Args&&... args){
-        handler = [&args..., *this, func = std::move(func)] (const event& obj) {
+    template <int id, typename func_type, typename... Args>
+    void add_callback(func_type func, Args&&... args){
+        handlers.add(id, [&args..., *this, func = std::move(func)] (const event& obj) {
             return func(parent, obj, args...);
-        };
+        });
     }
-    bool run_event(event& e) {	return handler(e); }
+    template <int id>
+    bool has_callback() {
+        return handlers.exists(id);
+    }
+    bool run_event(event_keypress& e) {	return handlers.get(event_keypress::id)(e); }
+    bool run_event(event_mousebutton& e) { return handlers.get(event_mousebutton::id)(e); }
+    bool run_event(event_cursor& e) { return handlers.get(event_cursor::id)(e); }
+    bool run_event(event& e) { return handlers.get(3)(e); }
 };
-
-using c_keyevent = event_wrapper<event_keypress::id>;
-using c_mouseevent = event_wrapper<event_mousebutton::id>;
-using c_cursorevent = event_wrapper<event_cursor::id>;
-using c_hoverevent = event_wrapper<3>;
 
 /*****************************/
 /*     Component Manager     */
 /*****************************/
 
 static constexpr u32 max_entities = 128;
-
 template <typename T>
 using pool = marked_storage<T, max_entities>;
-
 template <typename T>
 struct type_tag {};
-
-// I REALLY don't like using C macros here, but C++ lacks decent macros or metaprogramming.
-// If there's a better solution, let me know.
 
 #define ALL_COMPONENTS(m)\
 	m(c_display) m(c_collision) m(c_velocity) m(c_proximity)\
 	m(c_health) m(c_damage) m(c_weapon_pool) \
     m(c_enemy)\
 	m(c_player) m(c_inventory) m(c_mapdata)\
-	m(c_widget) m(c_selection) m(c_text)\
-	m(c_mouseevent) m(c_cursorevent) m(c_keyevent) m(c_hoverevent)
+	m(c_widget) m(c_selection) m(c_text) m(c_event_callbacks)\
 
 #define POOL_NAME(T) T ## _pool
 #define GENERATE_ACCESS_FUNCTIONS(T) constexpr pool<T>& get_pool(type_tag<T>) { return POOL_NAME(T); }
@@ -219,11 +218,7 @@ struct type_tag {};
 class component_manager {
 public:
 	ALL_COMPONENTS(GENERATE_ACCESS_FUNCTIONS)
-
-	void remove_all(entity e) {
-		ALL_COMPONENTS(GENERATE_REMOVE_CALLS)
-	}
-
+	void remove_all(entity e) {	ALL_COMPONENTS(GENERATE_REMOVE_CALLS) }
 private:
 	ALL_COMPONENTS(GENERATE_POOLS)
 };

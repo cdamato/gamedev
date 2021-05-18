@@ -32,6 +32,15 @@ void sprite_data::set_pos(sprite_coords pos, sprite_coords size, size_t quad) {
     _vertices[index + 3].pos = sprite_coords(pos.x, pos.y + size.y);
 }
 
+void sprite_data::set_uv(point<f32> pos, size<f32> size, size_t quad) {
+    // Vertices are in order top left, top right, bottom right, and bottom left
+    size_t index = (quad) * VERTICES_PER_QUAD;
+    _vertices[index].uv = pos;
+    _vertices[index + 1].uv = point<f32>(pos.x + size.x, pos.y);
+    _vertices[index + 2].uv = pos + point<f32>(size.x, size.y);
+    _vertices[index + 3].uv = point<f32>(pos.x, pos.y + size.y);
+}
+
 void sprite_data::set_tex_region(size_t tex_index, size_t quad) {
     ::size<f32> region_size(1.0f / tex->regions.x, 1.0f / tex->regions.y);
     ::size<f32> pos = region_size * ::size<f32>(tex_index % tex->regions.x, tex_index / tex->regions.x);
@@ -55,11 +64,19 @@ void sprite_data::move_by(sprite_coords change) {
 }
 
 
-rect<f32> sprite_data::get_dimensions() {
+rect<f32> sprite_data::get_dimensions(u8 quad_index) {
     sprite_coords min(65535, 65535);
     sprite_coords max(0, 0);
 
-    for (auto& vertex : _vertices) {
+    int start = 0;
+    int finish = _vertices.size();
+    if (quad_index != 255) {
+        start = quad_index * 4;
+        finish = start + 4;
+    }
+
+    for (int i = start; i < finish; i++) {
+        auto& vertex = _vertices[i];
         min.x = std::min(min.x, vertex.pos.x);
         min.y = std::min(min.y, vertex.pos.y);
 
@@ -114,7 +131,7 @@ void ecs_engine::run_ecs(int framerate_multiplier) {
 	systems.shooting.run(pool<c_display>(), pool<c_weapon_pool>(), player);
 	systems.health.run(pool<c_health>(), pool<c_damage>(), entities);
 	systems.health.update_healthbars(pool<c_health>(), pool<c_display>());
-    systems.proxinteract.run(pool<c_proximity>(), pool<c_keyevent>(), pool<c_display>().get(_player_id));
+    systems.proxinteract.run(pool<c_proximity>(), pool<c_event_callbacks>(), pool<c_display>().get(_player_id));
 	systems.text.run(pool<c_text>(), pool<c_display>());
 	std::vector<entity> destroyed = entities.remove_marked();
 	for (auto entity : destroyed) {
@@ -422,11 +439,13 @@ f32 distance(T a, T b) {
     return sqrt(pow(b.x - a.x, 2) + pow(b.y - a.y, 2));
 }
 
-void s_proxinteract::run(pool<c_proximity>& proximities, pool <c_keyevent>& keyevents, c_display& player_spr) {
+void s_proxinteract::run(pool<c_proximity>& proximities, pool <c_event_callbacks>& callbacks, c_display& player_spr) {
     f32 min = 1000;
     entity current_min = 65535;
     for(auto& proximity : proximities) {
-        if (!keyevents.exists(proximity.parent)) continue;
+        if (!callbacks.exists(proximity.parent)) continue;
+        auto& callback = callbacks.get(proximity.parent);
+
         if (test_proximity_collision(proximity, player_spr)) {
             f32 score = distance(proximity.origin, player_spr.sprites(0).get_dimensions().origin);
             if (score < min) {
@@ -469,16 +488,16 @@ void s_shooting::run(pool<c_display>& sprites, pool<c_weapon_pool> weapons, c_pl
 /******************************/
 
 struct s_text::impl {
-   // FT_Library library;
-    //FT_Face face;
+    FT_Library library;
+    FT_Face face;
 };
 
 s_text::s_text() {
     data = new impl;
-   // FT_Init_FreeType( &data->library );
-  //  FT_New_Face( data->library, "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 0, &data->face);
+    FT_Init_FreeType( &data->library );
+    FT_New_Face( data->library, "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 0, &data->face);
 }
-/*
+
 f32 calc_fontsize(size<f32> box) {
     u8 dpi = 96;
     f32 lineheight_inches = ((box.y) / static_cast<f32>(dpi));
@@ -486,7 +505,7 @@ f32 calc_fontsize(size<f32> box) {
 }
 
 u8 num_newlines(std::string text) {
-    u32 num_lines = 0;
+    u32 num_lines = 1;
     size_t index = 0;
     for (;;) {
         index = text.find("\n", index + 1);
@@ -523,41 +542,48 @@ void render_line(FT_Face face, std::string text, std::vector<u8>& bmp, point<u16
         pen.x += face->glyph->advance.x >> 6;
     }
 }
-*/
 
-void s_text::run(pool<c_text>& texts, pool<c_display>& sprites) {/*
-    if (texts.size() != last_atlassize) reconstruct_atlas = true;
-    if (reconstruct_atlas == false) return;
 
+
+void s_text::run(pool<c_text>& texts, pool<c_display>& displays) {
     size<f32> atlas_size(0, 0);
-
-    for(auto& sprite : sprites) {
-        if (!texts.exists(sprite.parent)) continue;
-        auto dim =  sprite.get_dimensions(texts.get(sprite.parent).sprite_index);
-        atlas_size.y += dim.size.y;
-        atlas_size.w = std::max(dim.size.x, atlas_size.x);
+    int num_text_entries = 0;
+    for(auto& text : texts) {
+        for (auto entry : text.text_entries) {
+            if (entry.text == "") continue;
+            auto dim = displays.get(text.parent).sprites(text.sprite_index).get_dimensions(entry.quad_index);
+            atlas_size.y += dim.size.y;
+            atlas_size.x = std::max(dim.size.x, atlas_size.x);
+            num_text_entries++;
+        }
     }
 
-    texture_data = std::vector<u8>(atlas_size.w * atlas_size.y);
+    if (num_text_entries != last_atlassize) regenerate = true;
+    if (regenerate == false) return;
 
+    tex->z_index = 8;
+    tex->is_greyscale = true;
+    tex->image_data = image(std::vector<u8>(atlas_size.x * atlas_size.y), atlas_size.to<u16>());
     point<u16> pen(0, 0);
 
     for(auto text : texts) {
-        auto dim =  sprites.get(text.parent).get_dimensions(text.sprite_index);
-        u8 num_lines = num_newlines(text.text);
-        f32 fontsize = (calc_fontsize(dim.size) / num_lines) / 2;
+        for (auto entry : text.text_entries) {
+            if (entry.text == "") continue;
+            auto dim = displays.get(text.parent).sprites(text.sprite_index).get_dimensions(entry.quad_index);
+            u8 num_lines = num_newlines(entry.text);
+            f32 fontsize = (calc_fontsize(dim.size) / num_lines) / 2;
 
-        FT_Set_Char_Size( data->face, fontsize * 64, 0, 100, 0 );
+            FT_Set_Char_Size( data->face, fontsize * 64, 0, 100, 0 );
 
-        render_line( data->face, text.text, texture_data, pen,
-                     atlas_size.x, dim.size.y / num_lines);
+            render_line(data->face, entry.text, tex->image_data.data(), pen, atlas_size.x, dim.size.y / num_lines);
 
-        point<f32> pos(0, pen.y / static_cast<f32>(atlas_size.y));
-        size<f32> new_dim(dim.size.w / static_cast<f32>(atlas_size.x), dim.size.y / static_cast<f32>(atlas_size.y));
+            point<f32> pos(0, pen.y / static_cast<f32>(atlas_size.y));
+            size<f32> new_dim(dim.size.x / static_cast<f32>(atlas_size.x), dim.size.y / static_cast<f32>(atlas_size.y));
 
-        sprites.get(text.parent).set_uv(pos, new_dim, 0, text.sprite_index);
-        sprites.get(text.parent).sprites(text.sprite_index).tex = atlas;
-        pen.y += dim.size.y ;
-    }*/
+            displays.get(text.parent).sprites(text.sprite_index).set_uv(pos, new_dim, entry.quad_index);
+            pen.y += dim.size.y ;
+        }
+        displays.get(text.parent).sprites(text.sprite_index).tex = tex;
+    }
 }
 }

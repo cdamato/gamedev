@@ -46,19 +46,14 @@ private:
 	std::array<u32, max_entities> healthbar_atlas_indices = std::array<u32, max_entities>();
 };
 
-struct s_text {
+struct s_text : public texture_generator {
 public:
-	texture atlas;
 	s_text();
 
 	void run(pool<c_text>&, pool<c_display>&);
-	std::vector<u8> get_texdata() { return texture_data; }
 private:
     struct impl;
-    std::vector<u8> texture_data;
 	impl* data;
-	size_t last_atlassize = 0;
-	bool reconstruct_atlas = true;
 };
 
 void system_collison_run(pool<c_collision>&, pool<c_display>&, c_mapdata&);
@@ -68,7 +63,7 @@ void system_velocity_run(pool<c_velocity>&, pool<c_display>&, int);
 class s_proxinteract {
 public:
     entity active_interact = 65535;
-    void run(pool<c_proximity>&, pool <c_keyevent>&, c_display&);
+    void run(pool<c_proximity>&, pool<c_event_callbacks>&, c_display&);
 };
 
 struct system_manager {
