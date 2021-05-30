@@ -61,6 +61,7 @@ enum command {
 	move_right,
 	interact,
 	toggle_inventory,
+	toggle_options_menu
 };
 
 #endif // EVENT_H

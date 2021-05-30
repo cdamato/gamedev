@@ -1,38 +1,32 @@
-
 #include <engine/engine.h>
-#include "basic_entity_funcs.h"
-
+#include <world/basic_entity_funcs.h>
+#include "ui_helper_funcs.h"
 
 void transfer_item(entity , engine& g, ecs::c_inventory&);
-// Given a point, this function returns the grid square it resides in
-point<u16> get_gridsquare(ecs::c_display& spr, point<f32> in) {
-    sprite_coords tl = spr.sprites(0).get_dimensions().origin;
-	return point<u16>((in.x - tl.x ) / 64.0f, (in.y- tl.y) / 64.0f);
-}
 
-// Given a gridsquare, this function returns the top left coordinate of the grid square it resides in
+
+// Given a gridsquare, this function returns the top left sprite coordinate corresponding to it
 sprite_coords snap_to_grid(ecs::c_display& spr, point<u16> in) {
     sprite_coords tl = spr.sprites(0).get_dimensions().origin;
 	return sprite_coords(in.x * 64 + tl.x, in.y * 64 + tl.y);
 }
 
+void set_square_highlight(entity e, engine& g, int square, bool highlight) {
+    g.ecs.get<ecs::c_display>(e).sprites(0).set_tex_region(highlight ? 1 : 0, square);
+}
 
 // Set the inventory to be the active cursor widget, and put the selection box in place of the clicked-on element.
 void pickup_item(entity e, sprite_coords box_snap_point, engine& g) {
-    ecs::c_selection &select = g.ecs.get<ecs::c_selection>(e);
+    ecs::c_selection& select = g.ecs.get<ecs::c_selection>(e);
     ecs::c_display& spr = g.ecs.get<ecs::c_display>(e);
     g.ui.cursor = e;
-
-    size <f32> item_size = spr.sprites(select.box_index).get_dimensions().size;
-    spr.sprites(select.box_index).set_pos(box_snap_point, item_size, 0);
-    spr.sprites(select.box_index).layer = render_layers::ui;
 }
 
 void write_item_to_slot(size_t index, sprite_coords pos, entity e, ecs::c_inventory::item item_in, engine& g) {
     ecs::c_display& spr = g.ecs.get<ecs::c_display>(e);
     ecs::c_selection &select = g.ecs.get<ecs::c_selection>(e);
 
-    sprite_coords item_size = spr.sprites(select.box_index).get_dimensions().size;
+    size<f32> item_size = spr.sprites(0).get_dimensions(0).size;
     spr.sprites(1).set_pos(pos, item_size, index);
     spr.sprites(1).set_tex_region(item_in.ID, index);
 
@@ -43,10 +37,7 @@ void write_item_to_slot(size_t index, sprite_coords pos, entity e, ecs::c_invent
 }
 
 void empty_slot(size_t index, sprite_coords pos, entity e, engine& g) {
-    ecs::c_selection &select = g.ecs.get<ecs::c_selection>(e);
     ecs::c_display& spr = g.ecs.get<ecs::c_display>(e);
-
-    spr.sprites(select.box_index).layer = render_layers::null;
     spr.sprites(1).set_pos(pos, size(0.0f, 0.0f), index);
 
     auto& text = g.ecs.get<ecs::c_text>(e);
@@ -55,10 +46,9 @@ void empty_slot(size_t index, sprite_coords pos, entity e, engine& g) {
 }
 
 void place_item(entity e, engine& g, ecs::c_selection& select, ecs::c_inventory& inv, ecs::c_display& spr) {
-
     g.ui.cursor = 65535;
     // box_index represents the position the currently held item was taken from
-    point<u16> box_point = get_gridsquare(spr, spr.sprites(select.box_index).get_dimensions().origin);
+    point<u16> box_point = g.ecs.get<ecs::c_selection>(e).secondary_active;
     size_t box_index = box_point.x + (box_point.y * select.grid_size.x);
 
     ecs::c_inventory::item held = inv.data.get(box_index);
@@ -70,106 +60,78 @@ void place_item(entity e, engine& g, ecs::c_selection& select, ecs::c_inventory&
         ecs::c_inventory::item highlight = inv.data.get(select.active_index());
         inv.data.remove(select.active_index());
         inv.data.add(box_index, highlight);
-        write_item_to_slot(box_index, snap_to_grid(spr, select.active), e, highlight, g);
+        write_item_to_slot(box_index, snap_to_grid(spr, select.secondary_active), e, highlight, g);
         pickup_item(e, snap_to_grid(spr, box_point), g);
-
+    } else {
+        set_square_highlight(e, g, project_to_1D(select.secondary_active, select.grid_size.x), false);
+        select.secondary_active = point<u16>(0, 0);
     }
 
     inv.data.add(select.active_index(), held);
     write_item_to_slot(select.active_index(), snap_to_grid(spr, select.active), e, held, g);
 }
 
-bool inventory_mouseevents(entity e, const event& ev_in,  engine& g, ecs::c_inventory& inv) {
-
-    auto& ev = dynamic_cast<const event_mousebutton&>(ev_in);
-    if (ev.release()) return true;
+void inventory_activation(entity e, engine& g) {
+    ecs::c_inventory& inv = g.ecs.get<ecs::c_inventory>(g.player_id());
     ecs::c_selection& select = g.ecs.get<ecs::c_selection>(e);
     ecs::c_display& spr = g.ecs.get<ecs::c_display>(e);
 
 	// There's no item "in hand", try and pick one up
 	if (g.ui.cursor == 65535) {
-		// There's nothing in the slot the mouse is hovering on, nothing can be done
-		if (!inv.data.exists(select.active_index())) return true;
-        pickup_item(e, snap_to_grid(spr, select.active), g);
-	} else if (g.ui.cursor != e) {
+        if (inv.data.exists(select.active_index())) {
+            pickup_item(e, snap_to_grid(spr, select.active), g);
+            select.secondary_active = select.active;
+        }
+	} else if (g.ui.cursor != e) { // There's another inventory widget active
         entity parent = g.ecs.get<ecs::c_widget>(e).parent;
         transfer_item(parent, g, inv);
 	} else {  // You already have an item, try to place or swap it.
         place_item(e, g, select, inv, spr);
 	}
-	return true;
 }
 
-
-bool inventory_motion(entity e, const event& ev_in, engine& game) {
-    ecs::c_display& spr = game.ecs.get<ecs::c_display>(e);
-    ecs::c_selection& select = game.ecs.get<ecs::c_selection>(e);
-
-    auto& ev = dynamic_cast<const event_cursor&>(ev_in);
-    if (game.ui.cursor == e) {
-        sprite_coords dim = spr.sprites(select.box_index).get_dimensions().size;
-        sprite_coords p (ev.pos().x - (dim.x / 2), ev.pos().y - (dim.y / 2));
-
-        auto dimensions = spr.sprites(select.box_index).get_dimensions().origin;
-        point<u16> box_point = get_gridsquare(spr, dimensions);
-        size_t box_index = box_point.x + (box_point.y * select.grid_size.x);
-        spr.sprites(1).set_pos(p, dim, box_index);
+void inventory_navigation(entity e, engine& g, int old_target, int new_target) {
+    ecs::c_selection& select = g.ecs.get<ecs::c_selection>(e);
+    if (g.ui.cursor == e) {
+        auto& spr = g.ecs.get<ecs::c_display>(e);
+        size<f32> item_size = spr.sprites(0).get_dimensions(0).size;
+        sprite_coords p (g.ui.last_position.to<f32>() - (item_size / 2));
+        size_t box_index = project_to_1D(select.secondary_active, select.grid_size.x);
+        spr.sprites(1).set_pos(p, item_size, box_index);
+        spr.sprites(2).set_pos(p, item_size, box_index);
     }
-
-
-	//if (ev.active_state() == false)	w->flags.unset(widget::flags::pressed);
-	point<u16> active = select.active;
-	size_t index = active.x + (active.y * select.grid_size.x);
-	spr.sprites(0).set_tex_region(0, index);
-
-	if (ev.state == event_cursor::transition::exit) return true;
-
-	// no idea what's going on here.
-	point<f32> bruh = ev.pos().to<f32>();
-	active = get_gridsquare(spr, bruh);
-	if (active.x >= select.grid_size.x || active.y >= select.grid_size.y) return true;
-
-	index = active.x + (active.y * select.grid_size.x);
-	select.active = active;
-	spr.sprites(0).set_tex_region(1, index);
-
-	return true;
+    if (old_target != project_to_1D(select.secondary_active, select.grid_size.x)) {
+        set_square_highlight(e, g, old_target, false);
+    }
+    if (abs(new_target) >= (select.grid_size.x * select.grid_size.y)) return;
+    set_square_highlight(e, g, new_target, true);
+    select.active = project_to_2D<u16>(new_target, select.grid_size.x);
 }
 
 void inventory_init(entity e, engine& g, entity parent, ecs::c_inventory& inv, screen_coords origin) {
 	g.ui.focus = e;
-    g.ecs.add<ecs::c_widget>(e);
-	make_parent(parent, e, g);
+	make_widget(e, g, parent);
     ecs::c_selection& select = g.ecs.add<ecs::c_selection>(e);
 
-	auto& callbacks = g.ecs.add<ecs::c_event_callbacks>(e);
-	callbacks.add_callback<event_mousebutton::id>(inventory_mouseevents, g, inv);
-    callbacks.add_callback<event_cursor::id>(inventory_motion, g);
+    auto& w = g.ecs.get<ecs::c_widget>(e);
+    w.on_activate = inventory_activation;
+    w.on_navigate = inventory_navigation;
 
 	select.grid_size = size<u16>(9, 4);
 	sprite_coords element_size(64, 64);
-	rect<f32> dim(origin.to<f32>(),
-               sprite_coords(select.grid_size.x * element_size.x, select.grid_size.y * element_size.y));
+	rect<f32> dim(origin.to<f32>(), sprite_coords(select.grid_size.x * element_size.x, select.grid_size.y * element_size.y));
 
 	int num_grid_elements = select.grid_size.x * select.grid_size.y;
     ecs::c_display& spr = g.ecs.add<ecs::c_display>(e);
-	spr.add_sprite(num_grid_elements, render_layers::ui  );
+	spr.add_sprite(num_grid_elements, render_layers::ui);
 	spr.sprites(0).tex = g.textures().get("highlight");
 
 	int item_spr = spr.add_sprite(num_grid_elements, render_layers::ui);
 	spr.sprites(item_spr).tex = g.textures().get("items");
 
-
-    select.box_index = spr.add_sprite(1, render_layers::null);
-    spr.sprites(select.box_index).set_pos(sprite_coords(0, 0), element_size, 0);
-    spr.sprites(select.box_index).tex = g.textures().get("highlight");
-    spr.sprites(select.box_index).set_tex_region(1, 0);
-
-
     ecs::c_text& text = g.ecs.add<ecs::c_text>(e);
     text.sprite_index = spr.add_sprite(num_grid_elements, render_layers::text);
     text.text_entries = std::vector<ecs::c_text::text_entry>(num_grid_elements);
-
 
 	int index = 0;
 	sprite_coords pos = origin.to<f32>();
@@ -201,11 +163,10 @@ void transfer_item(entity e, engine& g, ecs::c_inventory& b_inv) {
     ecs::c_inventory& a_inv = &b_inv == &player_inv ? storage : player_inv;
     ecs::c_selection& a_select = g.ecs.get<ecs::c_selection>(a);
     ecs::c_display& a_spr = g.ecs.get<ecs::c_display>(a);
-    point<u16> held_point = get_gridsquare(a_spr, a_spr.sprites(a_select.box_index).get_dimensions().origin);
-    size_t held_index = held_point.x + (held_point.y * a_select.grid_size.x);
+    size_t held_index = project_to_1D(a_select.secondary_active, a_select.grid_size.x);
 
     ecs::c_inventory::item held = a_inv.data.get(held_index);
-    empty_slot(held_index, snap_to_grid(a_spr, held_point), a, g);
+    empty_slot(held_index, snap_to_grid(a_spr, a_select.secondary_active), a, g);
     a_inv.data.remove(held_index);
 
 
@@ -220,8 +181,6 @@ void transfer_item(entity e, engine& g, ecs::c_inventory& b_inv) {
     ecs::c_selection& b_select = g.ecs.get<ecs::c_selection>(b);
     ecs::c_display& b_spr = g.ecs.get<ecs::c_display>(b);
 
-
-
     g.ui.cursor = 65535;
 
     if (b_inv.data.exists(b_select.active_index())) {
@@ -229,10 +188,9 @@ void transfer_item(entity e, engine& g, ecs::c_inventory& b_inv) {
         b_inv.data.remove(b_select.active_index());
         a_inv.data.add(held_index, highlight);
         write_item_to_slot(held_index, snap_to_grid(a_spr, a_select.active), a, highlight, g);
-        pickup_item(a, snap_to_grid(a_spr, held_point), g);
+        pickup_item(a, snap_to_grid(a_spr, a_select.secondary_active), g);
 
     }
-
 
     b_inv.data.add(b_select.active_index(), held);
     write_item_to_slot(b_select.active_index(), snap_to_grid(b_spr, b_select.active), b, held, g);

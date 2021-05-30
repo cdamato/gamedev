@@ -63,7 +63,7 @@ void system_velocity_run(pool<c_velocity>&, pool<c_display>&, int);
 class s_proxinteract {
 public:
     entity active_interact = 65535;
-    void run(pool<c_proximity>&, pool<c_event_callbacks>&, c_display&);
+    void run(pool<c_proximity>&, pool<c_widget>&, c_display&);
 };
 
 struct system_manager {

@@ -11,6 +11,7 @@
 #include <functional>
 #include <vector>
 
+class engine;
 namespace ecs {
 struct component {
 	entity parent = null_entity;
@@ -154,6 +155,11 @@ struct c_enemy : public component {
 struct c_widget : public component {
 	entity parent = 65535;
 	std::vector<entity> children;
+
+	using activation_action = void(*)(entity, engine&);
+	activation_action on_activate = nullptr;
+	using navigation_action = void(*)(entity, engine&, int, int);
+	navigation_action on_navigate = nullptr;
 };
 
 struct c_text : public component {
@@ -165,32 +171,17 @@ struct c_text : public component {
 	std::vector<text_entry> text_entries;
 };
 
+// Represent a navigable grid of equally-spaced smaller components. For widgets using this, the first sprite must be the container.
 struct c_selection : public component {
 	point<u16> active {};
+	point<u16> secondary_active {}; // Used for e.g. tracking the old item position in inventory, while highlighting the new hover location.
 	size<u16> grid_size {};
-	int box_index = 65535; // Can be used to help display selection status
-	entity active_index() { return active.x + (active.y * grid_size.x); }
+	int active_index() { return active.x + (active.y * grid_size.x); }
 };
 
-// A callback wrapper for UI events
-class c_event_callbacks : public component {
-    marked_storage<std::function<bool(event&)>, 4> handlers;
-    bool active = false;
-public:
-    template <int id, typename func_type, typename... Args>
-    void add_callback(func_type func, Args&&... args){
-        handlers.add(id, [&args..., *this, func = std::move(func)] (const event& obj) {
-            return func(parent, obj, args...);
-        });
-    }
-    template <int id>
-    bool has_callback() {
-        return handlers.exists(id);
-    }
-    bool run_event(event_keypress& e) {	return handlers.get(event_keypress::id)(e); }
-    bool run_event(event_mousebutton& e) { return handlers.get(event_mousebutton::id)(e); }
-    bool run_event(event_cursor& e) { return handlers.get(event_cursor::id)(e); }
-    bool run_event(event& e) { return handlers.get(3)(e); }
+struct c_checkbox : public component {
+    std::bitset<8> checked;
+	int sprite_index;
 };
 
 /*****************************/
@@ -208,7 +199,7 @@ struct type_tag {};
 	m(c_health) m(c_damage) m(c_weapon_pool) \
     m(c_enemy)\
 	m(c_player) m(c_inventory) m(c_mapdata)\
-	m(c_widget) m(c_selection) m(c_text) m(c_event_callbacks)\
+	m(c_widget) m(c_selection) m(c_text) m(c_checkbox) \
 
 #define POOL_NAME(T) T ## _pool
 #define GENERATE_ACCESS_FUNCTIONS(T) constexpr pool<T>& get_pool(type_tag<T>) { return POOL_NAME(T); }

@@ -451,7 +451,7 @@ typedef struct LodePNGInfo
 
 								 All the string fields below including keys, names and language tags are null terminated.
 								 The PNG specification uses null characters for the keys, names and tags, and forbids null
-								 characters to appear in the main text which is why we can use null termination everywhere here.
+								 characters to appear in the world text which is why we can use null termination everywhere here.
 
 								 A keyword is minimum 1 character and maximum 79 characters long. It's
 								 discouraged to use a single line length longer than 79 characters for texts.

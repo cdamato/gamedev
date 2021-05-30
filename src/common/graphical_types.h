@@ -83,7 +83,11 @@ struct sprite_data {
     void move_by(sprite_coords);
     void move_to(sprite_coords);
 
-    inline bool operator < (const sprite_data& rhs ) const { return tex->z_index < rhs.tex->z_index; }
+    inline bool operator < (const sprite_data& rhs ) const {
+        if (tex->z_index == rhs.tex->z_index)
+            return int(layer) < int(rhs.layer);
+        return tex->z_index < rhs.tex->z_index;
+    }
 private:
     std::vector<vertex> _vertices {};
 };

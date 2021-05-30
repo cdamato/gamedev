@@ -131,7 +131,7 @@ void ecs_engine::run_ecs(int framerate_multiplier) {
 	systems.shooting.run(pool<c_display>(), pool<c_weapon_pool>(), player);
 	systems.health.run(pool<c_health>(), pool<c_damage>(), entities);
 	systems.health.update_healthbars(pool<c_health>(), pool<c_display>());
-    systems.proxinteract.run(pool<c_proximity>(), pool<c_event_callbacks>(), pool<c_display>().get(_player_id));
+    systems.proxinteract.run(pool<c_proximity>(), pool<c_widget>(), pool<c_display>().get(_player_id));
 	systems.text.run(pool<c_text>(), pool<c_display>());
 	std::vector<entity> destroyed = entities.remove_marked();
 	for (auto entity : destroyed) {
@@ -439,12 +439,12 @@ f32 distance(T a, T b) {
     return sqrt(pow(b.x - a.x, 2) + pow(b.y - a.y, 2));
 }
 
-void s_proxinteract::run(pool<c_proximity>& proximities, pool <c_event_callbacks>& callbacks, c_display& player_spr) {
+void s_proxinteract::run(pool<c_proximity>& proximities, pool <c_widget>& widgets, c_display& player_spr) {
     f32 min = 1000;
     entity current_min = 65535;
     for(auto& proximity : proximities) {
-        if (!callbacks.exists(proximity.parent)) continue;
-        auto& callback = callbacks.get(proximity.parent);
+        if (!widgets.exists(proximity.parent)) continue;
+        if (widgets.get(proximity.parent).on_activate == nullptr) continue;
 
         if (test_proximity_collision(proximity, player_spr)) {
             f32 score = distance(proximity.origin, player_spr.sprites(0).get_dimensions().origin);
@@ -501,7 +501,7 @@ s_text::s_text() {
 f32 calc_fontsize(size<f32> box) {
     u8 dpi = 96;
     f32 lineheight_inches = ((box.y) / static_cast<f32>(dpi));
-    return (72.0f / (1.0f / lineheight_inches)) * 0.9;
+    return (72.0f / (1.0f / lineheight_inches));
 }
 
 u8 num_newlines(std::string text) {
@@ -519,9 +519,9 @@ void copy_bitmap(std::vector<u8>& h, FT_Bitmap* bmp,point<u16> pen, int width) {
     for(size_t y = 0; y < bmp->rows; y++ ){
         for (size_t x = 0; x < bmp->width; x++) {
             size_t src_index = (x + (y * (bmp->width)));
-            size_t dst_index = ((x + pen.x) + ((y + pen.y) * width));
+            size_t dst_index = ((x + pen.x) + ((y + pen.y) * width)) * 4;
 
-            h[dst_index] = bmp->buffer[src_index];
+            h[dst_index + 3] = bmp->buffer[src_index];
         }
     }
 }
@@ -562,8 +562,7 @@ void s_text::run(pool<c_text>& texts, pool<c_display>& displays) {
     if (regenerate == false) return;
 
     tex->z_index = 8;
-    tex->is_greyscale = true;
-    tex->image_data = image(std::vector<u8>(atlas_size.x * atlas_size.y), atlas_size.to<u16>());
+    tex->image_data = image(std::vector<u8>(atlas_size.x * atlas_size.y * 4, 0), atlas_size.to<u16>());
     point<u16> pen(0, 0);
 
     for(auto text : texts) {

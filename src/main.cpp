@@ -2,7 +2,8 @@
 #include <mutex>
 #include "common/parser.h"
 #include <fstream>
-#include "main/basic_entity_funcs.h"
+#include <world/basic_entity_funcs.h>
+#include "ui/ui_helper_funcs.h"
 
 
 void init_main_menu(engine& eng);
@@ -15,19 +16,34 @@ void test_enemies_gone(engine& e) {
     }
 }
 
-void init_dungeon(engine& e) {
-
-    e.in_dungeon = true;
+void activate_dungeon(entity e, engine& g) {
+    g.destroy_entity(e);
+    g.in_dungeon = true;
     world_coords map_size(32, 32);
-    set_map(e, map_size, generate_map(map_size));
+    set_map(g, map_size, generate_map(map_size));
 
-    e.create_entity(egen_enemy, world_coords(8, 8));
-    e.create_entity(egen_enemy, world_coords(3, 9));
-    e.logic.add(&test_enemies_gone);
+    g.create_entity(egen_enemy, world_coords(8, 8));
+    g.create_entity(egen_enemy, world_coords(3, 9));
+    g.logic.add(&test_enemies_gone);
 }
 
 
-void init_npc_hub(engine& g) {
+
+
+void storage_chest_init(entity e, engine& g) {
+    if (g.command_states.test(command::toggle_inventory)) {
+        g.destroy_entity(g.ui.focus);
+        g.ui.focus = 65535;
+        g.ui.cursor = 65535;
+        g.command_states.set(command::toggle_inventory, false);
+        return;
+    }
+    //g.create_entity([&](entity new_e, engine& g) { inv_transfer_init(new_e, g, g.ecs.get<ecs::c_inventory>(e)); });
+}
+
+
+void init_npc_hub(entity e, engine& g) {
+    g.destroy_entity(e);
     printf("clicked\n");
     config_parser p("config/main_hub.txt");
     auto d = p.parse();
@@ -52,7 +68,8 @@ void init_npc_hub(engine& g) {
     world_coords sc_size(scsize->get<int>(0), scsize->get<int>(1));
 
     g.create_entity([&](entity e, engine& g) {
-        basic_sprite_setup(e, g, render_layers::sprites, sc_origin, sc_size, point<f32>(0, 0), size<f32>(1, 1), "button");
+        basic_sprite_setup(e, g, render_layers::sprites, sc_origin, sc_size, 0, "button");
+        make_widget(e, g, g.ui.root);
 
         ecs::c_inventory& inv = g.ecs.add<ecs::c_inventory>(e);
         ecs::c_proximity& prox = g.ecs.add<ecs::c_proximity>(e);
@@ -60,18 +77,8 @@ void init_npc_hub(engine& g) {
         prox.origin = world_coords(sc_origin.x - 1, sc_origin.y);
         prox.radii = world_coords(sc_size.x + 2, sc_size.y + 1);
 
-        ecs::c_event_callbacks& on_activate = g.ecs.add<ecs::c_event_callbacks>(e);
-        on_activate.add_callback<event_keypress::id>([&](entity e, const event& ev, engine& g_in) {
-            if (g_in.command_states.test(command::toggle_inventory)) {
-                g_in.destroy_entity(g_in.ui.focus);
-                g.ui.focus = 65535;
-                g.ui.cursor = 65535;
-                g_in.command_states.set(command::toggle_inventory, false);
-                return true;
-            }
-            g_in.create_entity([&](entity e, engine& g) { inv_transfer_init(e, g_in, inv); });
-            return true;
-        }, g);
+        auto& w = g.ecs.get<ecs::c_widget>(e);
+        w.on_activate = storage_chest_init;
     });
 
     const config_dict* dungeonportal_dict = dynamic_cast<const config_dict*>(d->get("dungeon_portal"));
@@ -81,39 +88,25 @@ void init_npc_hub(engine& g) {
     world_coords dp_size(dpsize->get<int>(0), dpsize->get<int>(1));
 
     g.create_entity([&](entity e, engine& g) {
-        //basic_sprite_setup(e, g, render_layers::sprites, dp_origin, dp_size, point<f32>(0, 0), size<f32>(1, 1), "button");
+        basic_sprite_setup(e, g, render_layers::sprites, dp_origin, dp_size, 0, "button");
+        make_widget(e, g, g.ui.root);
 
         ecs::c_proximity& prox = g.ecs.add<ecs::c_proximity>(e);
         prox.shape = ecs::c_proximity::shape::rectangle;
         prox.origin = world_coords(dp_origin.x - 1, dp_origin.y);
         prox.radii = world_coords(dp_size.x + 2, dp_size.y + 1);
 
-        ecs::c_event_callbacks& callbacks = g.ecs.add<ecs::c_event_callbacks>(e);
-        callbacks.add_callback<event_keypress::id>([&](entity e, const event& ev, engine& g_in) {
-            g.destroy_entity(e);
-            init_dungeon(g_in);
-            return true;
-        }, g);
+        auto& w = g.ecs.get<ecs::c_widget>(e);
+        w.on_activate = activate_dungeon;
     });
-
-
-
 }
 
 
 void init_main_menu(engine& eng) {
     eng.create_entity([&](entity e, engine& g) {
-        basic_sprite_setup(e, g, render_layers::ui, sprite_coords(100, 500), sprite_coords(64, 64), sprite_coords(0, 0), size<f32>(1, 1), "button");
+        basic_sprite_setup(e, g, render_layers::ui, sprite_coords(100, 500), sprite_coords(64, 64), 0, "button");
         make_widget(e, g, eng.ui.root);
-
-        auto& on_click = g.ecs.add<ecs::c_event_callbacks>(e);
-        on_click.add_callback<event_mousebutton::id>([&](entity e, const event& ev_in, engine& g_in) {
-            const auto& ev = dynamic_cast<const event_mousebutton&>(ev_in);
-            if (!ev.release()) return true;
-            g.destroy_entity(e);
-            init_npc_hub(g_in);
-            return true;
-        }, g);
+        g.ecs.get<ecs::c_widget>(e).on_activate = init_npc_hub;
     });
 }
 

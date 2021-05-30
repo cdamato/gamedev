@@ -53,7 +53,7 @@ void renderer::render_layer(texture_manager& tm) {
     render_layers layer = (*batching_pool.begin()).layer;
 
     for(auto sprite : batching_pool) {
-        if (sprite.tex != current_tex) {
+        if (sprite.tex != current_tex || sprite.layer != layer) {
             render_batch(current_tex, layer, tm);
             current_tex = sprite.tex;
             layer = sprite.layer;

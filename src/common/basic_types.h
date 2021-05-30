@@ -94,6 +94,16 @@ struct rect {
 };
 
 template <typename T>
+int project_to_1D(vec2d<T> vec, int width) {
+	return vec.x + (vec.y * width);
+}
+
+template <typename T>
+vec2d<T> project_to_2D(int idx, int width) {
+	return vec2d<T>(idx % width, idx / width);
+}
+
+template <typename T>
 bool test_range(T a, T b, T c) {
 	return ((b > a) && (b < c));
 }

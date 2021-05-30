@@ -1,4 +1,4 @@
-SOURCE_DIRS := src/common/ src/ecs/ src/engine/ src/display/ src/main/
+SOURCE_DIRS := src/common/ src/ecs/ src/engine/ src/display/ src/world/ src/ui/
 TEST_DIRS := tests/
 
 CPP_DEFINES :=
@@ -38,7 +38,7 @@ ARM64:
 Coverage:
 	@mkdir -p "Build/Unit_Tests"
 	$(MAKE) -f make_impl BUILD_DIR=Build/Unit_Tests TARGET_EXE=test_suite SOURCE_DIRECTORIES="$(TEST_DIRS) $(SOURCE_DIRS)" LIBRARY_DIR=/usr/local/lib \
-	LIBS="$(LINUX_LIBS) gcov2" CXXFLAGS_IN="--coverage"
+	LIBS="$(LINUX_LIBS) gcov" CXXFLAGS_IN="--coverage"
 
 clean: 
 	rm -rf Build/

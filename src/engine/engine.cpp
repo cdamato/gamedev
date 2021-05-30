@@ -1,6 +1,6 @@
 #include "engine.h"
 #include <common/parser.h>
-#include "../main/basic_entity_funcs.h"
+#include <world/basic_entity_funcs.h>
 
 
 void engine::run_tick() {
@@ -39,8 +39,9 @@ void engine::run_tick() {
 
 void engine::destroy_entity(entity e) {
     ecs.entities.mark_entity(e);
-    // Recursively delete child widget entities
+    // Recursively delete child widget entities, remove entity from parent
     if (ecs.exists<ecs::c_widget>(e)) {
+        remove_child(ecs.get<ecs::c_widget>(ecs.get<ecs::c_widget>(e).parent), e);
         ecs::c_widget& w = ecs.get<ecs::c_widget>(e);
         for (auto child : w.children) destroy_entity(child);
     }
@@ -72,6 +73,7 @@ settings_manager::settings_manager() {
     bindings['d'] = command::move_right;
     bindings['e'] = command::interact;
     bindings['\t'] = command::toggle_inventory;
+    bindings['o'] = command::toggle_options_menu;
 
     config_parser p("settings.txt");
     auto d = p.parse();
@@ -99,9 +101,10 @@ entity at_cursor(entity e, engine& g, screen_coords cursor) {
     entity next = 65535;
     ecs::c_widget& w = g.ecs.get<ecs::c_widget>(e);
     for (auto it = w.children.begin(); it != w.children.end(); it++) {
-        if (!g.ecs.exists<ecs::c_event_callbacks>(*it)) continue;
-        if (!g.ecs.get<ecs::c_event_callbacks>(*it).has_callback<type>()) continue;
-        if (test_collision(g.ecs.get<ecs::c_display>(*it).get_dimensions(), cursor.to<f32>())) next = *it;
+        if (g.ecs.get<ecs::c_display>(*it).sprites(0).layer == render_layers::sprites)
+            continue;
+        if (test_collision(g.ecs.get<ecs::c_display>(*it).get_dimensions(), cursor.to<f32>()))
+            next = *it;
     }
 
     if (next == 65535) return e;
@@ -109,14 +112,21 @@ entity at_cursor(entity e, engine& g, screen_coords cursor) {
 }
 
 bool handle_button(event& e_in, engine& g) {
+    auto& ev = dynamic_cast<event_mousebutton&>(e_in);
+    if (!ev.release()) return false;
     g.ui.hover_timer.start();
 
-    auto& ev = dynamic_cast<event_mousebutton&>(e_in);
     entity dest = at_cursor<event_mousebutton::id>(g.ui.root, g, ev.pos());
-    bool success = false;
-    if (dest != 65535 && dest != g.ui.root)
-        success = g.ecs.get<ecs::c_event_callbacks>(dest).run_event(ev);
-    if (success) return true;
+    while (g.ecs.get<ecs::c_widget>(dest).on_activate == nullptr) {
+        dest = g.ecs.get<ecs::c_widget>(dest).parent;
+        if (dest == g.ui.root) break;
+    }
+    if (dest != 65535 && dest != g.ui.root) {
+
+        g.ecs.get<ecs::c_widget>(dest).on_activate(dest, g);
+        return true;
+    }
+
 
     world_coords h (ev.pos().x / 64.0f, ev.pos().y / 64.0f);
     if (ev.release() && g.in_dungeon) {
@@ -143,7 +153,8 @@ bool handle_keypress(event& e_in, engine& g) {
             if (e.release())  return false;
             entity active = g.ui.active_interact;
             if (active == 65535)  return false;
-            return g.ecs.get<ecs::c_event_callbacks>(active).run_event(e);
+            g.ecs.get<ecs::c_widget>(active).on_activate(active, g);
+            break;
         }
         case command::toggle_inventory: {
             if (e.release()) return false;
@@ -156,6 +167,19 @@ bool handle_keypress(event& e_in, engine& g) {
                 g.create_entity(inventory_init, g.ui.root, g.ecs.get<ecs::c_inventory>(g.player_id()), point<u16>(100, 100));
             }
             g.command_states.set(command::toggle_inventory, !toggle_state);
+            return false;
+        }
+        case command::toggle_options_menu: {
+            if (e.release()) return false;
+            bool toggle_state = g.command_states.test(command::toggle_options_menu) == true;
+            if (toggle_state) {
+                g.destroy_entity(g.ui.focus);
+                g.ui.focus = 65535;
+                g.ui.cursor = 65535;
+            } else {
+                g.create_entity(options_menu_init, g.ui.root, point<u16>(100, 100));
+            }
+            g.command_states.set(command::toggle_options_menu, !toggle_state);
             return false;
         }
         case command::move_left:
@@ -174,36 +198,51 @@ bool handle_keypress(event& e_in, engine& g) {
     return true;
 }
 
+
+bool cursorevent_to_navevent(entity e, event_cursor& ev, engine& g) {
+    auto& w = g.ecs.get<ecs::c_widget>(e);
+    if (w.on_navigate == nullptr) return false;
+    if (g.ecs.exists<ecs::c_selection>(e)) {
+        auto& select = g.ecs.get<ecs::c_selection>(e);
+        rect<f32> grid_dimensions = g.ecs.get<ecs::c_display>(e).sprites(0).get_dimensions();
+        point<f32> item_size = grid_dimensions.size / select.grid_size.to<f32>();
+        point<u16> new_active = ((ev.pos().to<f32>() - grid_dimensions.origin) / item_size).to<u16>();
+        w.on_navigate(e, g, project_to_1D(select.active, select.grid_size.x), project_to_1D(new_active, select.grid_size.x));
+    }
+
+    return true;
+}
+
 bool handle_cursor(event& e_in, engine& g) {
-    auto& e = dynamic_cast<event_cursor&>(e_in);
+    auto& e = dynamic_cast<event_cursor &>(e_in);
     g.ui.hover_timer.start();
-    if (g.ui.cursor != 65535) g.ecs.get<ecs::c_event_callbacks>(g.ui.cursor).run_event(e);
+    //if (g.ui.cursor != 65535) g.ecs.get<ecs::c_event_callbacks>(g.ui.cursor).run_event(e);
 
     entity dest = at_cursor<event_cursor::id>(g.ui.root, g, e.pos());
     entity start = at_cursor<event_cursor::id>(g.ui.root, g, g.ui.last_position);
     if (start == g.ui.root && dest == g.ui.root) return false;
 
 
-    if (start == dest) return g.ecs.get<ecs::c_event_callbacks>(start).run_event(e);
-
+    g.ui.last_position = e.pos();
+    if (start == dest)  {
+        cursorevent_to_navevent(start, e, g);
+        return true;
+    }
     // The cursor is switching between entities, give focus transition events
     if (dest != 65535 && dest != g.ui.root) {
-        e.state = event_cursor::transition::enter;
-        return g.ecs.get<ecs::c_event_callbacks>(dest).run_event(e);
+        cursorevent_to_navevent(dest, e, g);
     }
     if (start != 65535 && start != g.ui.root) {
-        e.state = event_cursor::transition::exit;
-        return g.ecs.get<ecs::c_event_callbacks>(start).run_event(e);
+        cursorevent_to_navevent(start, e, g);
     }
 
-    g.ui.last_position = e.pos();
-    return false;
+    return true;
 }
 
 bool handle_hover(event& e, engine& g) {
     entity dest = at_cursor<3>(g.ui.root, g, g.ui.last_position);
     if (dest == 65535 || dest == g.ui.root) return false;
-    return g.ecs.get<ecs::c_event_callbacks>(dest).run_event(e);
+    //return g.ecs.get<ecs::c_event_callbacks>(dest).run_event(e);
 }
 
 

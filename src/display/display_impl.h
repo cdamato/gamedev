@@ -43,7 +43,7 @@ private:
     };
     static shader gen_shader(std::string, std::string);
     renderer_gl::shader& get_shader(render_layers layer);
-    renderer_gl::shader text_shader = gen_shader("shaders/ui.vert", "shaders/text.frag");
+    renderer_gl::shader text_shader = gen_shader("shaders/ui.vert", "shaders/shader.frag");
     renderer_gl::shader ui_shader = gen_shader("shaders/ui.vert", "shaders/shader.frag");
     renderer_gl::shader map_shader = gen_shader("shaders/world.vert", "shaders/shader.frag");
 

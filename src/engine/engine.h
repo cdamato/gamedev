@@ -81,7 +81,10 @@ private:
     display::display_manager display;
 };
 
+void remove_child(ecs::c_widget& w, entity b);
 
 void inventory_init(entity, engine&, entity, ecs::c_inventory& inv, screen_coords);
+void options_menu_init(entity, engine&, entity, screen_coords);
+
 
 #endif //ENGINE_H
