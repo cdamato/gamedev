@@ -44,15 +44,21 @@ void texture_manager::load_textures() {
     }
 }
 
-
-void renderer::add_sprite(sprite_data& sprite) { batching_pool.emplace(sprite); }
+void renderer::add_sprite(sprite_data& sprite) { batching_pool.emplace_back(sprite); }
 void renderer::clear_sprites() { batching_pool.clear(); }
+void renderer::mark_sprites_dirty() { sprites_dirty = true;}
+
 void renderer::render_layer(texture_manager& tm) {
     if (batching_pool.size() == 0 ) return;
+
+    if (sprites_dirty) {
+        std::sort(batching_pool.begin(), batching_pool.end());
+        sprites_dirty = false;
+    }
     texture* current_tex = (*batching_pool.begin()).tex;
     render_layers layer = (*batching_pool.begin()).layer;
 
-    for(auto sprite : batching_pool) {
+    for(auto& sprite : batching_pool) {
         if (sprite.tex != current_tex || sprite.layer != layer) {
             render_batch(current_tex, layer, tm);
             current_tex = sprite.tex;

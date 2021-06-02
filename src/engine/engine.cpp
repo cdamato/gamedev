@@ -31,6 +31,7 @@ void engine::run_tick() {
             renderer().add_sprite(sprite);
         }
     }
+    renderer().mark_sprites_dirty();
 
     world_coords end_pos = ecs.get<ecs::c_display>(player_id()).get_dimensions().origin;
     offset += (end_pos - start_pos);

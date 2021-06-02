@@ -73,7 +73,7 @@ struct sprite_data {
         layer = layer_in;
     }
 
-    const std::vector<vertex>& vertices() { return _vertices; };
+    const std::vector<vertex>& vertices() const { return _vertices; };
     rect<f32> get_dimensions(u8 quad_index = 255);
 
     void set_pos(sprite_coords, sprite_coords, size_t);
