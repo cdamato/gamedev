@@ -50,8 +50,8 @@ struct vec2d {
 	constexpr vec2d<U> to() const { return vec2d<U>(static_cast<U>(x), static_cast<U>(y)); }
 
 	// Expand operator definitions for the given types
-    VEC2D_COMP_MACRO(!=)
-    VEC2D_COMP_MACRO(==)
+    constexpr bool operator == (const vec2d<T>& rhs) const { return x == rhs.x && y == rhs.y; }
+    constexpr bool operator != (const vec2d<T>& rhs) const { return x != rhs.x || y != rhs.y; }
     VEC2D_COMP_MACRO(<)
     VEC2D_COMP_MACRO(>)
 

@@ -74,7 +74,7 @@ bool x11_window::poll_events() {
             }
             case ButtonPress:
             case ButtonRelease: {
-                event_mousebutton ev(screen_coords(xev.xbutton.x, xev.xbutton.y), xev.type == ButtonPress);
+                event_mousebutton ev(screen_coords(xev.xbutton.x, xev.xbutton.y), xev.type == ButtonRelease);
                 event_callback(ev);
                 break;
             }

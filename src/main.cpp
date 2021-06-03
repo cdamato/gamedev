@@ -3,7 +3,7 @@
 #include "common/parser.h"
 #include <fstream>
 #include <world/basic_entity_funcs.h>
-#include "ui/ui_helper_funcs.h"
+#include <ui/ui.h>
 
 
 void init_main_menu(engine& eng);

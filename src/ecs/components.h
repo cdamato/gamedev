@@ -171,12 +171,13 @@ struct c_text : public component {
 	std::vector<text_entry> text_entries;
 };
 
-// Represent a navigable grid of equally-spaced smaller components. For widgets using this, the first sprite must be the container.
+// Represents a navigable grid of equally-spaced smaller components of the same type. For widgets using this, the first sprite must be the container.
 struct c_selection : public component {
 	point<u16> active {};
 	point<u16> secondary_active {}; // Used for e.g. tracking the old item position in inventory, while highlighting the new hover location.
 	size<u16> grid_size {};
 	int active_index() { return active.x + (active.y * grid_size.x); }
+	int sprite_index;
 };
 
 struct c_checkbox : public component {
@@ -184,6 +185,13 @@ struct c_checkbox : public component {
 	int sprite_index;
 };
 
+// Stores data for 4 sliders
+struct c_slider : public component {
+	std::array<int, 4> min_values;
+	std::array<int, 4> current_values;
+	std::array<int, 4> max_values;
+    std::array<int, 4> increments;
+};
 /*****************************/
 /*     Component Manager     */
 /*****************************/
@@ -199,7 +207,7 @@ struct type_tag {};
 	m(c_health) m(c_damage) m(c_weapon_pool) \
     m(c_enemy)\
 	m(c_player) m(c_inventory) m(c_mapdata)\
-	m(c_widget) m(c_selection) m(c_text) m(c_checkbox) \
+	m(c_widget) m(c_selection) m(c_text) m(c_checkbox) m(c_slider)\
 
 #define POOL_NAME(T) T ## _pool
 #define GENERATE_ACCESS_FUNCTIONS(T) constexpr pool<T>& get_pool(type_tag<T>) { return POOL_NAME(T); }
