@@ -515,18 +515,21 @@ u8 num_newlines(std::string text) {
     return num_lines;
 }
 
-void copy_bitmap(std::vector<u8>& h, FT_Bitmap* bmp,point<u16> pen, int width) {
+void copy_bitmap(std::vector<u8>& h, FT_Bitmap* bmp,point<u16> pen, int width, color text_color) {
     for(size_t y = 0; y < bmp->rows; y++ ){
         for (size_t x = 0; x < bmp->width; x++) {
             size_t src_index = (x + (y * (bmp->width)));
             size_t dst_index = ((x + pen.x) + ((y + pen.y) * width)) * 4;
 
+            h[dst_index] = text_color.r;
+            h[dst_index + 1] = text_color.g;
+            h[dst_index + 2] = text_color.b;
             h[dst_index + 3] = bmp->buffer[src_index];
         }
     }
 }
 
-void render_line(FT_Face face, std::string text, std::vector<u8>& bmp, point<u16> pen, int width, f32 lineheight) {
+void render_line(FT_Face face, std::string text, std::vector<u8>& bmp, point<u16> pen, int width, f32 lineheight, color text_color) {
     pen.y += lineheight * 0.755;
     for ( size_t n = 0; n < text.length(); n++) {
         if(text[n] == '\n') {
@@ -538,7 +541,7 @@ void render_line(FT_Face face, std::string text, std::vector<u8>& bmp, point<u16
         if ( error ) continue;
 
         int new_y = std::max(pen.y - (face->glyph->metrics.horiBearingY / 64), 0L);
-        copy_bitmap(bmp, &face->glyph->bitmap, point<u16>(pen.x + face->glyph->bitmap_left, new_y), width );
+        copy_bitmap(bmp, &face->glyph->bitmap, point<u16>(pen.x + face->glyph->bitmap_left, new_y), width, text_color);
         pen.x += face->glyph->advance.x >> 6;
     }
 }
@@ -574,7 +577,7 @@ void s_text::run(pool<c_text>& texts, pool<c_display>& displays) {
 
             FT_Set_Char_Size( data->face, fontsize * 64, 0, 100, 0 );
 
-            render_line(data->face, entry.text, tex->image_data.data(), pen, atlas_size.x, dim.size.y / num_lines);
+            render_line(data->face, entry.text, tex->image_data.data(), pen, atlas_size.x, dim.size.y / num_lines, entry.text_color);
 
             point<f32> pos(0, pen.y / static_cast<f32>(atlas_size.y));
             size<f32> new_dim(dim.size.x / static_cast<f32>(atlas_size.x), dim.size.y / static_cast<f32>(atlas_size.y));
