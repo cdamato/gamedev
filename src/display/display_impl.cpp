@@ -1,48 +1,96 @@
-#include <common/png.h>
-#include <common/parser.h>
-#include <GL/glew.h>
-#include <assert.h>
+#include <cstring>
+#include <fstream>
 #include <cmath>
+#include <assert.h>
+#include <common/parser.h>
+#include <common/event.h>
+#include <common/png.h>
+#include <GL/glew.h>
 #include "display_impl.h"
-#include "display.h"
 
 namespace display {
+
 constexpr unsigned quads_in_buffer = 1024;
 constexpr unsigned buffer_size = quads_in_buffer * vertices_per_quad * sizeof(vertex);
 
+////////////////////////////////////
+//*     Display Manager code     *//
+////////////////////////////////////
 
-texture* texture_manager::get(std::string name) { return &textures[texture_map[name]]; }
-texture* texture_manager::add(std::string name) {
-    u32 id = get_new_id();
-    texture* tex = &textures[id];
-    tex->id = id;
-    texture_map[name] = id;
-    return tex;
+void display_manager::render() {
+    get_renderer().clear_screen();
+    get_renderer().render_layer(textures());
+    get_window().swap_buffers(get_renderer());
 }
 
-void load_pixel_data(texture* data, std::string filename) {
-    std::vector<unsigned char> pixels;
-    unsigned int width, height;
-    auto error = lodepng::decode(pixels, width, height, filename);
-
-    if (error)
-        printf("Error Loading texture: %s\n", lodepng_error_text(error));
-    data->image_data = image(pixels, size<u16>(width, height));
-}
-
-void texture_manager::load_textures() {
-    config_parser p("config/textures.txt");
-    auto d = p.parse();
-    for (auto it = d->begin(); it != d->end(); it++) {
-        const config_list* list = dynamic_cast<const config_list*>((&it->second)->get());
-        texture* tex = add(it->first);
-        load_pixel_data(tex, "textures/" + list->get<std::string>(0));
-        tex->regions = size<u16>(list->get<int>(1), list->get<int>(2));
-        tex->z_index = list->get<int>(3);
-        tex->scale_factor = list->get<int>(4);
-        update(tex);
+void display_manager::initialize(display_types mode, screen_coords resolution) {
+#ifdef OPENGL
+    if (mode == display_types::software) {
+        _window = std::unique_ptr<window_impl>(new software_backend(resolution));
+        _textures = std::unique_ptr<texture_manager>(new texture_manager_software);
+        _renderer = std::unique_ptr<renderer>(new renderer_software);
+    } else {
+        _window = std::unique_ptr<window_impl>(new gl_backend(resolution));
+        renderer_gl::initialize_opengl();
+        _textures = std::unique_ptr<texture_manager>(new texture_manager_gl);
+        _renderer = std::unique_ptr<renderer>(new renderer_gl);
     }
+#else
+    _window = std::unique_ptr<window_impl>(new software_backend(resolution));
+    _textures = std::unique_ptr<texture_manager>(new texture_manager_software);
+    _renderer = std::unique_ptr<renderer>(new renderer_software);
+#endif //OPENGL
+    textures().load_textures();
+    get_window().set_vsync(true);
 }
+
+////////////////////////////////////////////////////////////////
+//*     Common window, renderer, and texture manager code    *//
+////////////////////////////////////////////////////////////////
+
+//////////////////////////////////
+//*     Common window code     *//
+//////////////////////////////////
+
+sdl_window::~sdl_window() { SDL_DestroyWindow(window); }
+sdl_window::sdl_window(screen_coords resolution_in, int flags) {
+    u32 window_flags = SDL_WINDOW_SHOWN | flags;
+    window = SDL_CreateWindow("SDL2 OpenGL Example", 0, 0, resolution_in.x, resolution_in.y, window_flags);
+    resolution = resolution_in;
+}
+
+bool sdl_window::poll_events() {
+    SDL_Event event;
+    while (SDL_PollEvent(&event) > 0) {
+        switch (event.type) {
+            case SDL_QUIT:
+                return false;
+            case SDL_KEYUP:
+            case SDL_KEYDOWN: {
+                if (event.key.repeat) break;
+                event_keypress e(event.key.keysym.sym, event.type == SDL_KEYUP);
+                event_callback(e);
+                break;
+            }
+            case SDL_MOUSEBUTTONDOWN:
+            case SDL_MOUSEBUTTONUP: {
+                event_mousebutton ev(screen_coords(event.button.x, event.button.y), event.type == SDL_MOUSEBUTTONUP);
+                event_callback(ev);
+                break;
+            }
+            case SDL_MOUSEMOTION: {
+                event_cursor e(screen_coords(event.motion.x, event.motion.y));
+                event_callback(e);
+                break;
+            }
+        }
+    }
+    return true;
+}
+
+////////////////////////////////////
+//*     Common renderer code     *//
+////////////////////////////////////
 
 void renderer::add_sprite(sprite_data& sprite) { batching_pool.emplace_back(sprite); }
 void renderer::clear_sprites() { batching_pool.clear(); }
@@ -88,27 +136,60 @@ void renderer::render_layer(texture_manager& tm) {
     render_batch(current_tex, layer, tm);
 }
 
+///////////////////////////////////////////
+//*     Common texture manager code     *//
+///////////////////////////////////////////
 
+texture* texture_manager::get(std::string name) { return &textures[texture_map[name]]; }
+texture* texture_manager::add(std::string name) {
+    u32 id = get_new_id();
+    texture* tex = &textures[id];
+    tex->id = id;
+    texture_map[name] = id;
+    return tex;
+}
 
+void load_pixel_data(texture* data, std::string filename) {
+    std::vector<unsigned char> pixels;
+    unsigned int width, height;
+    auto error = lodepng::decode(pixels, width, height, filename);
+    if (error)
+        printf("Error Loading texture: %s\n", lodepng_error_text(error));
+    data->image_data = image(pixels, size<u16>(width, height));
+}
+
+void texture_manager::load_textures() {
+    config_parser p("config/textures.txt");
+    auto d = p.parse();
+    for (auto it = d->begin(); it != d->end(); it++) {
+        const config_list* list = dynamic_cast<const config_list*>((&it->second)->get());
+        texture* tex = add(it->first);
+        load_pixel_data(tex, "textures/" + list->get<std::string>(0));
+        tex->regions = size<u16>(list->get<int>(1), list->get<int>(2));
+        tex->z_index = list->get<int>(3);
+        tex->scale_factor = list->get<int>(4);
+        update(tex);
+    }
+}
 
 #ifdef OPENGL
 
-void texture_manager_gl::update(texture* tex) {
-    unsigned data_type = tex->is_greyscale ? 0x1903 : GL_RGBA;
-    glBindTexture(GL_TEXTURE_2D, tex->id);
-    glTexImage2D(GL_TEXTURE_2D, 0, data_type, tex->image_data.size().x, tex->image_data.size().y, 0, data_type, GL_UNSIGNED_BYTE, tex->image_data.data().data());
-    glGenerateMipmap(GL_TEXTURE_2D);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
-}
+////////////////////////////////////////////////////////////////
+//*     OpenGL window, renderer, and texture manager code    *//
+////////////////////////////////////////////////////////////////
 
-u32 texture_manager_gl::get_new_id() {
-    u32 id;
-    glGenTextures(1, &id);
-    return id;
-}
+//////////////////////////////////
+//*     OpenGL window  code    *//
+//////////////////////////////////
+
+gl_backend::gl_backend(screen_coords resolution_in) : sdl_window(resolution_in, SDL_WINDOW_OPENGL) { gl_context = SDL_GL_CreateContext(window); }
+gl_backend::~gl_backend() { SDL_GL_DeleteContext(gl_context); }
+void gl_backend::swap_buffers(renderer& r) { SDL_GL_SwapWindow(window); }
+void gl_backend::set_vsync(bool state) { SDL_GL_SetSwapInterval(state ? 1 : 0); }
+
+///////////////////////////////////
+//*     OpenGL Renderer code    *//
+///////////////////////////////////
 
 renderer_gl::shader::shader(u32 vert, u32 frag) {
     _ID = glCreateProgram();
@@ -307,9 +388,73 @@ void renderer_gl::clear_screen()
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 }
 
+///////////////////////////////////////////
+//*     OpenGL texture manager code     *//
+///////////////////////////////////////////
+
+void texture_manager_gl::update(texture* tex) {
+    unsigned data_type = tex->is_greyscale ? 0x1903 : GL_RGBA;
+    glBindTexture(GL_TEXTURE_2D, tex->id);
+    glTexImage2D(GL_TEXTURE_2D, 0, data_type, tex->image_data.size().x, tex->image_data.size().y, 0, data_type, GL_UNSIGNED_BYTE, tex->image_data.data().data());
+    glGenerateMipmap(GL_TEXTURE_2D);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
+}
+
+u32 texture_manager_gl::get_new_id() {
+    u32 id;
+    glGenTextures(1, &id);
+    return id;
+}
 
 #endif //OPENGL
 
+///////////////////////////////////////////////////////////////////
+//*     Software window, renderer, and texture manager code     *//
+///////////////////////////////////////////////////////////////////
+
+///////////////////////////////////
+//*     Software window code    *//
+///////////////////////////////////
+
+void software_backend::attach_shm(framebuffer& fb) { fb = framebuffer(reinterpret_cast<u8*>(buffer), get_drawable_resolution()); }
+void software_backend::swap_buffers(renderer& r) {
+    auto& frame = reinterpret_cast<renderer_software&>(r).get_framebuffer();
+    if (reinterpret_cast<u32*>(frame.data()) != buffer) {
+        attach_shm(frame);
+        return;
+    }
+    SDL_UpdateTexture(fb_texture, NULL, buffer, resolution.x * sizeof (u32));
+    SDL_RenderClear(renderer_handle);
+    SDL_RenderCopy(renderer_handle, fb_texture , NULL, NULL);
+    SDL_RenderPresent(renderer_handle);
+}
+
+void software_backend::set_vsync(bool state) {
+    SDL_DestroyTexture(fb_texture);
+    SDL_DestroyRenderer(renderer_handle);
+    int flags = SDL_RENDERER_SOFTWARE | state ? SDL_RENDERER_PRESENTVSYNC : 0;
+    renderer_handle =  SDL_CreateRenderer(window, -1, flags);
+    fb_texture = SDL_CreateTexture(renderer_handle, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, resolution.x, resolution.y);
+}
+
+software_backend::software_backend(screen_coords resolution_in) : sdl_window(resolution_in, 0) {
+    renderer_handle =  SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
+    fb_texture = SDL_CreateTexture(renderer_handle, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, resolution.x, resolution.y);
+    buffer = new u32[resolution.x * resolution.y];
+}
+
+software_backend::~software_backend() {
+    SDL_DestroyTexture(fb_texture);
+    SDL_DestroyRenderer(renderer_handle);
+    delete[] buffer;
+}
+
+//////////////////////////////////////
+//*     Software renderer code     *//
+//////////////////////////////////////
 
 image rescale_texture(image source, size<u16> new_size) {
     size<f32> upscale_ratio (new_size.x / source.size().x, new_size.y / source.size().y);
@@ -336,40 +481,10 @@ image rescale_texture(image source, size<u16> new_size) {
     return upscaled_tex;
 }
 
-void texture_manager_software::update(texture* tex) {
-    image& image_data = tex->image_data;
-    if(image_data.size().x == 0 && image_data.size().y == 0) return;
-
-    textures_2x_scaled[tex->id] = rescale_texture(image_data, size<u16>(image_data.size().x * 2, image_data.size().y * 2));
-    textures_4x_scaled[tex->id] = rescale_texture(image_data, size<u16>(image_data.size().x * 4, image_data.size().y * 4));
-}
-
-u32 texture_manager_software::get_new_id() {
-    u32 id = texture_counter;
-    texture_counter++;
-    return id;
-}
-
-void renderer_software::clear_screen() {
-    memset(fb.data(), 0, fb.size().x * fb.size().y * 4);
-}
-
-
-renderer_software::renderer_software() {
-    batching_buffer = new vertex[quads_in_buffer * vertices_per_quad];
-}
-
-
-
-void renderer_software::set_viewport(screen_coords screen_size) {
-    //resolution = screen_size;
-}
-
-
-void renderer_software::set_camera(vec2d<f32> camera_in) {
-    camera = camera_in;
-}
-
+void renderer_software::clear_screen() { memset(fb.data(), 0, fb.size().x * fb.size().y * 4); }
+renderer_software::renderer_software() { batching_buffer = new vertex[quads_in_buffer * vertices_per_quad]; }
+void renderer_software::set_viewport(screen_coords screen_size) { }
+void renderer_software::set_camera(vec2d<f32> camera_in) { camera = camera_in; }
 
 vertex transpose_vertex(std::array<f32, 6> matrix, vertex vert) {
     point<f32> new_vertex;
@@ -377,7 +492,6 @@ vertex transpose_vertex(std::array<f32, 6> matrix, vertex vert) {
     new_vertex.y = (matrix[3] * vert.pos.x) + (matrix[4] * vert.pos.y) + matrix [5];
     return vertex {new_vertex, vert.uv};
 }
-
 
 void render_quad(void* fb_data, screen_coords fb_size, image& texture_data, vertex tl_vert, vertex br_vert) {
     point<f32> tl_clipped(round(std::max(0.0f, tl_vert.pos.x)), round(std::max(0.0f, tl_vert.pos.y)));
@@ -439,8 +553,25 @@ void renderer_software::render_batch(texture* current_tex, render_layers layer, 
             image a = rescale_texture(current_tex->image_data, sprite_rect.size.to<u16>());
             render_quad(fb.data(), fb.size(), a, tl_vert, br_vert);
         }
-
     }
     quads_batched = 0;
+}
+
+/////////////////////////////////////////////
+//*     Software texture manager code     *//
+/////////////////////////////////////////////
+
+void texture_manager_software::update(texture* tex) {
+    image& image_data = tex->image_data;
+    if(image_data.size().x == 0 && image_data.size().y == 0) return;
+
+    textures_2x_scaled[tex->id] = rescale_texture(image_data, size<u16>(image_data.size().x * 2, image_data.size().y * 2));
+    textures_4x_scaled[tex->id] = rescale_texture(image_data, size<u16>(image_data.size().x * 4, image_data.size().y * 4));
+}
+
+u32 texture_manager_software::get_new_id() {
+    u32 id = texture_counter;
+    texture_counter++;
+    return id;
 }
 }

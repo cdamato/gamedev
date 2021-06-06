@@ -2,7 +2,7 @@ SOURCE_DIRS := src/common/ src/ecs/ src/engine/ src/display/ src/world/ src/ui/
 TEST_DIRS := tests/
 
 CPP_DEFINES :=
-LINUX_LIBS := Xext freetype X11 GL
+LINUX_LIBS := Xext freetype X11 GL SDL2
 AMD64_FLAGS := -Darch_amd64
 DEBUG_FLAGS := -Wno-unused-parameter -fsanitize=undefined -fsanitize=address -g3 -Wall -Wextra
 
@@ -18,7 +18,7 @@ endif
 Windows:
 	@mkdir -p "Build/Windows"AMD64_FLAGS
 	$(MAKE) -f make_impl CXX="x86_64-w64-mingw32-g++-posix" \ BUILD_DIR=Build/Windows SOURCE_DIRECTORIES="$(SOURCE_DIRS) src/" INCLUDE_DIR="win32_libraries/include/" LIBRARY_DIR=win32_libraries/lib/ \
-	LIBS="opengl32 gdi32 glew32" LDFLAGS_IN="-static -static-libstdc++ -static-libgcc" CXXFLAGS_IN="$(CPP_DEFINES) -mwindows -g3 -municode" USE_DEPFLAGS=false
+	LIBS="opengl32 gdi32  glew32 mingw32 SDL2main SDL2.dll" LDFLAGS_IN="-static -static-libstdc++ -static-libgcc" CXXFLAGS_IN="$(CPP_DEFINES) -mwindows -g3 -municode" USE_DEPFLAGS=false
 	  
 Debug:
 	@mkdir -p "Build/Debug"

@@ -112,7 +112,7 @@ void init_main_menu(engine& eng) {
 
 
 
-int main() {
+int main(int, char **) {
     printf("Exec begin\n");
     engine w;
 
