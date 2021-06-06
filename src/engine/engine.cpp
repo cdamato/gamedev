@@ -100,7 +100,7 @@ engine::engine() {
 
     display.initialize(display::display_manager::display_types(settings.flags.test(window_flags::use_software_render)), settings.resolution);
     printf("Window Initialized\n");
-    window().event_callback = [this](event& ev) { process_event(ev, *this); };
+    window().event_callback = [this](input_event& ev) { process_event(ev, *this); };
     window().resize_callback = [this](screen_coords size) { renderer().set_viewport(size); };
 
     ecs.systems.shooting.bullet_types.push_back(ecs::s_shooting::bullet{world_coords(0.3, 0.6), world_coords(0.25, 0.25), "bullet"});

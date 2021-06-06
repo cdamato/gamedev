@@ -1,10 +1,9 @@
 #ifndef EVENT_H
 #define EVENT_H
 
-#include <common/bit_types.h>
 #include <common/basic_types.h>
 
-struct event  {
+struct input_event  {
 	virtual int event_id() = 0;
 };
 
@@ -13,7 +12,7 @@ struct event  {
 	int event_id() { return id; }
 
 
-class event_keypress : public event {
+class event_keypress : public input_event {
 public:
     EVENT_ID_TAG(0)
 
@@ -25,7 +24,7 @@ private:
 	bool _release;
 };
 
-class event_mousebutton : public event {
+class event_mousebutton : public input_event {
 public:
     EVENT_ID_TAG(1)
 
@@ -37,17 +36,10 @@ private:
     bool _release;
 };
 
-class event_cursor : public event {
+class event_cursor : public input_event {
 public:
 	EVENT_ID_TAG(2)
 
-	// Indicate a focus transition between entities
-	enum class transition {
-	    enter,
-	    exit,
-	    none
-	};
-	transition state = transition::none;
 	event_cursor(screen_coords pos_in) : _pos(pos_in) {};
 	screen_coords pos() const { return _pos; }
 private:

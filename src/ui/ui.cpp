@@ -56,7 +56,7 @@ entity at_cursor(entity e, engine& g, screen_coords cursor) {
     return at_cursor<type>(next, g, cursor);
 }
 
-bool handle_button(event& e_in, engine& g) {
+bool handle_button(input_event& e_in, engine& g) {
     auto& ev = dynamic_cast<event_mousebutton&>(e_in);
     g.ui.hover_timer.start();
 
@@ -87,7 +87,7 @@ bool handle_button(event& e_in, engine& g) {
     return false;
 }
 
-bool handle_keypress(event& e_in, engine& g) {
+bool handle_keypress(input_event& e_in, engine& g) {
     auto& e = dynamic_cast<event_keypress&>(e_in);
     auto it = g.settings.bindings.find(e.key_id());
     if (it == g.settings.bindings.end()) {
@@ -149,7 +149,7 @@ bool handle_keypress(event& e_in, engine& g) {
 
 
 
-bool handle_cursor(event& e_in, engine& g) {
+bool handle_cursor(input_event& e_in, engine& g) {
     auto& e = dynamic_cast<event_cursor &>(e_in);
     g.ui.hover_timer.start();
     //if (g.ui.cursor != 65535) g.ecs.get<ecs::c_event_callbacks>(g.ui.cursor).run_event(e);
@@ -175,7 +175,7 @@ bool handle_cursor(event& e_in, engine& g) {
     return true;
 }
 
-bool handle_hover(event& e, engine& g) {
+bool handle_hover(input_event& e, engine& g) {
     entity dest = at_cursor<3>(g.ui.root, g, g.ui.last_position);
     if (dest == 65535 || dest == g.ui.root) return false;
     //return g.ecs.get<ecs::c_event_callbacks>(dest).run_event(e);
@@ -183,7 +183,7 @@ bool handle_hover(event& e, engine& g) {
 
 
 
-bool process_event(event& e, engine& g) {
+bool process_event(input_event& e, engine& g) {
     g.ui.hover_timer.start();
     g.ui.hover_active = false;
 
@@ -247,7 +247,7 @@ void make_widget(entity e, engine& g, entity parent) {
 
 
 
-bool selection_keypress(entity e, const event& ev, engine& g) {
+bool selection_keypress(entity e, const input_event& ev, engine& g) {
     /*ecs::c_selection& select = g.ecs.get<ecs::c_selection>(e);
     if (ev.active_state() == false) return false;
     // std::min is a fuckwad!

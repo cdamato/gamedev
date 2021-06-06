@@ -53,6 +53,21 @@ struct texture {
     bool is_greyscale = false;
 };
 
+
+class texture_generator {
+public:
+    void set_texture(texture *in) {
+        tex = in;
+        regenerate = true;
+    }
+
+    texture* get_texture() { return tex; }
+protected:
+    size_t last_atlassize = 0;
+    texture* tex;
+    bool regenerate = true;
+};
+
 // You can set render layer to "null" to prevent display of a sprite.
 enum class render_layers : u8 {
     null,
@@ -91,6 +106,7 @@ struct sprite_data {
 private:
     std::vector<vertex> _vertices {};
 };
+
 
 
 #endif //GRAPHICAL_TYPES_H

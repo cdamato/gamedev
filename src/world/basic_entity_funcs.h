@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-#include <ecs/ecs.h>
+#include <engine/ecs.h>
 
 struct engine;
 

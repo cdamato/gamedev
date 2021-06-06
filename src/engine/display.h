@@ -3,9 +3,8 @@
 
 #include <common/basic_types.h>
 #include <common/graphical_types.h>
-#include <common/event.h>
+#include "input_event.h"
 #include <functional>
-#include <set>
 #include <unordered_map>
 #include <string>
 #include <memory>
@@ -64,7 +63,7 @@ public:
     bool renderer_busy() { return _renderer_busy; }
     virtual void set_vsync(bool) = 0;
 
-    std::function<void(event&)> event_callback;
+    std::function<void(input_event&)> event_callback;
     std::function<void(screen_coords)> resize_callback;
     screen_coords resolution;
 protected:

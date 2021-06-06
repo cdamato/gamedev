@@ -1,8 +1,8 @@
 #ifndef ENGINE_H
 #define ENGINE_H
 
-#include <ecs/ecs.h>
-#include <display/display_impl.h>
+#include "ecs.h"
+#include "display.h"
 #include <unordered_map>
 #include <memory>
 
@@ -82,7 +82,7 @@ private:
 };
 
 void remove_child(ecs::c_widget& w, entity b);
-bool process_event(event& ev, engine&);
+bool process_event(input_event& ev, engine&);
 
 
 #endif //ENGINE_H

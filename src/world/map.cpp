@@ -1,6 +1,5 @@
-
+#include "noise.h"
 #include <engine/engine.h>
-#include <common/noise.h>
 #include <random>
 
 std::random_device rd;

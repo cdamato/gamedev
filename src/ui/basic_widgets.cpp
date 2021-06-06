@@ -1,7 +1,8 @@
 #include "ui.h"
-/////////////////////////////
-//*     Checkbox code     *//
-/////////////////////////////
+
+///////////////////////////
+//     CHECKBOX CODE     //
+///////////////////////////
 
 void optionmenu_activation(entity e, engine& g) {
     auto& select = g.ecs.get<ecs::c_selection>(e);
@@ -62,7 +63,9 @@ void initialize_checkbox_group(entity e, engine& g, int num_checkboxes) {
     display.sprites(checkbox_sprite_index).tex = g.textures().get("checkbox");
 }
 
-
+/////////////////////////
+//     SLIDER CODE     //
+/////////////////////////
 
 void slider_set_value(entity e, engine& g, int value, int index) {
     auto& slider = g.ecs.get<ecs::c_slider>(e);
@@ -113,7 +116,6 @@ void add_slider(entity e, engine& g, point<f32> pos, size<f32> grid_size, int in
 }
 
 void initialize_slider_group(entity e, engine& g, int num_sliders) {
-
     make_widget(e, g, g.ui.root);
     auto& widget = g.ecs.get<ecs::c_widget>(e);
     widget.on_navigate = slider_navigation;
@@ -127,14 +129,13 @@ void initialize_slider_group(entity e, engine& g, int num_sliders) {
     display.sprites(1).tex = g.textures().get("slider");
     g.ecs.add<ecs::c_slider>(e);
 
-
     auto& text = g.ecs.add<ecs::c_text>(e);
     text.sprite_index = display.add_sprite(num_sliders, render_layers::ui);
-
-
 }
 
-
+////////////////////////////
+//     SELECTION CODE     //
+////////////////////////////
 
 void selectiongrid_set_highlight(entity e, engine& g, int index, bool enter) {
     g.ecs.get<ecs::c_display>(e).sprites(0).set_tex_region(enter ? 1 : 0, index);
