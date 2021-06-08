@@ -219,8 +219,16 @@ struct c_slider : public component {
 // Stores data for 4 button
 struct c_button : public component {
     std::array<c_widget::activation_action, 4> callbacks;
-    int num_buttons;
     int sprite_index;
+};
+
+struct c_dropdown : public component {
+	struct dropdown_data {
+		std::vector<std::string> entries;
+		int active;
+	};
+	std::vector<dropdown_data> dropdowns;
+	int sprite_index;
 };
 
 ///////////////////////////////
@@ -238,7 +246,7 @@ struct type_tag {};
     m(c_health) m(c_damage) m(c_weapon_pool) \
     m(c_enemy)\
     m(c_player) m(c_inventory) m(c_mapdata)\
-    m(c_widget) m(c_selection) m(c_text) m(c_checkbox) m(c_slider) m(c_button)\
+    m(c_widget) m(c_selection) m(c_text) m(c_checkbox) m(c_slider) m(c_button) m(c_dropdown)\
 
 #define POOL_NAME(T) T ## _pool
 #define GENERATE_ACCESS_FUNCTIONS(T) constexpr pool<T>& get_pool(type_tag<T>) { return POOL_NAME(T); }

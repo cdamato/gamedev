@@ -58,9 +58,13 @@ void add_sliders(entity e, engine& g, point<f32> pos, size<f32> grid_size, Args.
 void button_activation(entity e, engine& g);
 void button_navigation(entity e, engine& g, u32 old_index, u32 new_index);
 void add_button(entity e, engine& g, point<f32> pos, size<f32> grid_size, u32 index, ecs::c_widget::activation_action function, std::string label);
-void initialize_button_group(entity e, engine& g, int num_buttons);
+void initialize_button_group(entity e, entity parent, engine& g, int num_buttons);
 
 
+void dropdown_activation(entity e, engine& g, bool release);
+void dropdown_navigation(entity e, engine& g, u32 old_index, u32 new_index);
+void add_dropdown(entity e, engine& g, point<f32> pos, size<f32> grid_size, u32 index, std::vector<std::string> options, int active);
+void initialize_dropdown_group(entity e, engine& g, int num_dropdowns);
 
 
 void selectiongrid_set_highlight(entity e, engine& g, u32 index, bool enter);

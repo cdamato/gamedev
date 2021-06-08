@@ -482,7 +482,7 @@ void s_text::run(pool<c_text>& texts, pool<c_display>& displays) {
     }
 
     if (num_text_entries != last_atlassize) regenerate = true;
-    if (regenerate == false) return;
+    if (num_text_entries == 0) return;
 
     tex->z_index = 8;
     tex->image_data = image(std::vector<u8>(atlas_size.x * atlas_size.y * 4, 0), atlas_size.to<u16>());

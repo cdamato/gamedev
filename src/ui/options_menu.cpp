@@ -13,7 +13,6 @@ void options_menu_init(entity e, engine& g, entity root, screen_coords pos) {
 
 void options_menu_init(entity e, engine& g, entity root, screen_coords pos) {
     g.ui.focus = e;
-    add_sliders(e, g, point<f32>(100, 100), sprite_coords(256, 16),
-            0, 25, 100, 10, "Master Volume",
-            0, 25, 100, 10, "Novice Volume");
+    initialize_dropdown_group(e, g, 1);
+    add_dropdown(e, g, point<f32>(100, 100), sprite_coords(200, 48), 0, std::vector<std::string>{"hi", "bye", "uwu"}, 0);
 }

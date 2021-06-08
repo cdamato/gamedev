@@ -106,7 +106,7 @@ void haha(entity e, engine&, bool release) {
 }
 void init_main_menu(engine& eng) {
     eng.create_entity([&](entity e, engine& g) {
-        initialize_button_group(e, g, 2);
+        initialize_button_group(e, g.ui.root, g,  2);
         add_button(e, g, sprite_coords(100, 400), sprite_coords(64, 64), 0, init_npc_hub, "!!");
         add_button(e, g, sprite_coords(196, 400), sprite_coords(64, 64), 1, haha, "??");
 

@@ -30,7 +30,7 @@ bool cursorevent_to_navevent(entity e, engine& g, sprite_coords ev_pos) {
         auto& button = g.ecs.get<ecs::c_button>(e);
         auto& select = g.ecs.get<ecs::c_selection>(e);
         int new_active;
-        if (focus_index < button.num_buttons) {
+        if (focus_index < select.num_elements()) {
             if (test_collision(g.ecs.get<ecs::c_display>(e).sprites(button.sprite_index).get_dimensions(focus_index), ev_pos)) {
                 new_active = focus_index;
             } else {
@@ -38,6 +38,19 @@ bool cursorevent_to_navevent(entity e, engine& g, sprite_coords ev_pos) {
             }
         }
         button_navigation(e, g, select.highlight_index(), new_active);
+    } else if (g.ecs.exists<ecs::c_dropdown>(e)) {
+        auto& dropdown = g.ecs.get<ecs::c_dropdown>(e);
+        auto& select = g.ecs.get<ecs::c_selection>(e);
+        int new_active;
+        if (focus_index < select.num_elements()) {
+            if (test_collision(g.ecs.get<ecs::c_display>(e).sprites(dropdown.sprite_index).get_dimensions(focus_index), ev_pos)) {
+                new_active = focus_index;
+            } else {
+                new_active = 65535;
+            }
+        }
+        dropdown_navigation(e, g, select.highlight_index(), new_active);
+        //selectiongrid_navigation(e, g, select.highlight_index(), focus_index);
     } else {
         w.on_navigate(e, g, select.highlight_index(), focus_index);
     }
@@ -90,11 +103,11 @@ bool handle_button(input_event& e_in, engine& g) {
     }
     // send a nav event when releasing the cursor away from the held entity
     if (ev.release() && held != dest && held != 65535) {
-        cursorevent_to_navevent(held, g, g.ui.last_position.to<f32>());
         ecs::c_widget::activation_action function = g.ecs.get<ecs::c_widget>(held).on_activate;
         if (function != nullptr) {
             function(held, g, true);
         }
+        cursorevent_to_navevent(held, g, g.ui.last_position.to<f32>());
     }
 
     world_coords h (ev.pos().x / 64.0f, ev.pos().y / 64.0f);

@@ -140,19 +140,21 @@ void initialize_slider_group(entity e, engine& g, int num_sliders) {
     text.sprite_index = display.add_sprite(num_sliders, render_layers::ui);
 }
 
-
+/////////////////////////
+//     BUTTON CODE     //
+/////////////////////////
 
 void button_activation(entity e, engine& g, bool release) {
     auto& buttons = g.ecs.get<ecs::c_button>(e);
     auto& select = g.ecs.get<ecs::c_selection>(e);
     int active_index = select.active_index();
-    if (release) {
-        if (select.active_index() == select.highlight_index() && select.active_index() < select.num_elements()) {
+    if (release && select.active_index() < select.num_elements()) {
+        if (select.active_index() == select.highlight_index()) {
             buttons.callbacks[active_index](e, g, release);
         }
         g.ecs.get<ecs::c_display>(e).sprites(buttons.sprite_index).set_tex_region(0, select.active_index());
         select.active = point<u16>(65535, 65535);
-    } else if (select.highlight_index() < select.num_elements()) {
+    } else if (release == false && select.highlight_index() < select.num_elements()) {
         g.ecs.get<ecs::c_display>(e).sprites(buttons.sprite_index).set_tex_region(2,  select.highlight_index());
         select.active = select.highlight;
     }
@@ -161,12 +163,12 @@ void button_activation(entity e, engine& g, bool release) {
 void button_navigation(entity e, engine& g, u32 old_index, u32 new_index) {
     auto& select = g.ecs.get<ecs::c_selection>(e);
     auto& buttons = g.ecs.get<ecs::c_button>(e);
-    if (old_index < buttons.num_buttons) {
+    if (old_index < select.num_elements()) {
         if (old_index != select.active_index()) {
             g.ecs.get<ecs::c_display>(e).sprites(buttons.sprite_index).set_tex_region(0, old_index);
         }
     }
-    if (new_index < buttons.num_buttons) {
+    if (new_index < select.num_elements()) {
         if (new_index != select.active_index()) {
             g.ecs.get<ecs::c_display>(e).sprites(buttons.sprite_index).set_tex_region(1, new_index);
         }
@@ -190,8 +192,8 @@ void add_button(entity e, engine& g, point<f32> pos, size<f32> grid_size, u32 in
     text.text_entries.push_back(ecs::c_text::text_entry{index, label});
 }
 
-void initialize_button_group(entity e, engine& g, int num_buttons) {
-    make_widget(e, g, g.ui.root);
+void initialize_button_group(entity e, entity parent, engine& g, int num_buttons) {
+    make_widget(e, g, parent);
     auto& widget = g.ecs.get<ecs::c_widget>(e);
     widget.on_navigate = button_navigation;
     widget.on_activate = button_activation;
@@ -203,7 +205,6 @@ void initialize_button_group(entity e, engine& g, int num_buttons) {
     display.sprites(0).tex = g.textures().get("menu_background");
 
     auto& button = g.ecs.add<ecs::c_button>(e);
-    button.num_buttons = num_buttons;
     button.sprite_index = display.add_sprite(num_buttons, render_layers::ui);
     display.sprites(button.sprite_index).tex = g.textures().get("button");
 
@@ -211,7 +212,106 @@ void initialize_button_group(entity e, engine& g, int num_buttons) {
     text.sprite_index = display.add_sprite(num_buttons, render_layers::ui);
 }
 
+///////////////////////////
+//     DROPDOWN CODE     //
+///////////////////////////
 
+void dropdown_set_text(entity e, engine& g, int index) {
+    auto& dropdown = g.ecs.get<ecs::c_dropdown>(e);
+    auto& selection = g.ecs.get<ecs::c_selection>(e);
+    auto& text = g.ecs.get<ecs::c_text>(e);
+    int dropdown_index = 0;
+    if (dropdown_index < selection.num_elements()) {
+        text.text_entries[dropdown_index].text = dropdown.dropdowns[dropdown_index].entries[index];
+    }
+}
+
+
+void dropdown_menu_activation(entity e, engine& g, bool release) {
+    entity parent = g.ecs.get<ecs::c_widget>(e).parent;
+    auto& selection = g.ecs.get<ecs::c_selection>(e);
+    dropdown_set_text(parent, g, selection.active_index());
+    g.ui.focus = parent;
+    g.destroy_entity(e);
+}
+
+void open_dropdown(entity e, engine& g, entity parent, rect<f32> box, ecs::c_dropdown::dropdown_data dropdown_data) {
+    g.ui.focus = e;
+    initialize_button_group(e, parent, g, dropdown_data.entries.size());
+    for (int i = 0; i < dropdown_data.entries.size(); i++) {
+        box.origin.y += box.size.y;
+        add_button(e, g, box.origin, box.size, i, dropdown_menu_activation, dropdown_data.entries[i]);
+    }
+}
+
+void dropdown_activation(entity e, engine& g, bool release) {
+    auto& dropdown = g.ecs.get<ecs::c_dropdown>(e);
+    auto& select = g.ecs.get<ecs::c_selection>(e);
+    int active_index = select.active_index();
+    if (release && select.active_index() < select.num_elements()) {
+        if (select.active_index() == select.highlight_index()) {
+            g.create_entity(open_dropdown, e, g.ecs.get<ecs::c_display>(e).sprites(dropdown.sprite_index).get_dimensions(0), dropdown.dropdowns[select.active_index()]);
+        }
+        g.ecs.get<ecs::c_display>(e).sprites(dropdown.sprite_index).set_tex_region(0, select.active_index());
+        select.active = point<u16>(65535, 65535);
+    } else if (release == false && select.highlight_index() < select.num_elements()) {
+        g.ecs.get<ecs::c_display>(e).sprites(dropdown.sprite_index).set_tex_region(2,  select.highlight_index());
+        select.active = select.highlight;
+    }
+}
+
+void dropdown_navigation(entity e, engine& g, u32 old_index, u32 new_index) {
+    auto& select = g.ecs.get<ecs::c_selection>(e);
+    auto& dropdown = g.ecs.get<ecs::c_dropdown>(e);
+    if (old_index < select.num_elements()) {
+        if (old_index != select.active_index()) {
+            g.ecs.get<ecs::c_display>(e).sprites(dropdown.sprite_index).set_tex_region(0, old_index);
+        }
+    }
+    if (new_index < select.num_elements()) {
+        if (new_index != select.active_index()) {
+            g.ecs.get<ecs::c_display>(e).sprites(dropdown.sprite_index).set_tex_region(1, new_index);
+        }
+    }
+    select.highlight = project_to_2D<u16>(new_index, select.grid_size.x);
+}
+
+void add_dropdown(entity e, engine& g, point<f32> pos, size<f32> grid_size, u32 index, std::vector<std::string> options, int active) {
+    auto& dropdown = g.ecs.get<ecs::c_dropdown>(e);
+    auto& display = g.ecs.get<ecs::c_display>(e);
+    dropdown.dropdowns.emplace_back(ecs::c_dropdown::dropdown_data{ options, active });
+
+    display.sprites(0).set_pos(pos, grid_size, index);
+    display.sprites(0).set_tex_region(0, index);
+
+    display.sprites(1).set_pos(pos + sprite_coords(32, 0), grid_size - sprite_coords(64, 0), index);
+    display.sprites(1).set_tex_region(0, index);
+
+    auto& text = g.ecs.get<ecs::c_text>(e);
+    display.sprites(text.sprite_index).set_pos(pos + point<f32>(48, 0), grid_size, index);
+    text.text_entries.push_back(ecs::c_text::text_entry{index, options[active]});
+}
+
+void initialize_dropdown_group(entity e, engine& g, int num_dropdowns) {
+    make_widget(e, g, g.ui.root);
+    auto& widget = g.ecs.get<ecs::c_widget>(e);
+    widget.on_navigate = dropdown_navigation;
+    widget.on_activate = dropdown_activation;
+    g.ecs.add<ecs::c_selection>(e).grid_size = size<u16>(1, num_dropdowns);
+    g.ecs.get<ecs::c_selection>(e).active = point<u16>(65535, 65535);
+
+    auto& display = g.ecs.add<ecs::c_display>(e);
+    display.add_sprite(num_dropdowns + 1, render_layers::ui);
+    display.sprites(0).tex = g.textures().get("menu_background");
+    display.sprites(0).set_pos(sprite_coords(0, 0), sprite_coords(500, 500), num_dropdowns);
+
+    auto& dropdown = g.ecs.add<ecs::c_dropdown>(e);
+    dropdown.sprite_index = display.add_sprite(num_dropdowns, render_layers::ui);
+    display.sprites(dropdown.sprite_index).tex = g.textures().get("button");
+
+    auto& text = g.ecs.add<ecs::c_text>(e);
+    text.sprite_index = display.add_sprite(num_dropdowns, render_layers::ui);
+}
 
 ////////////////////////////
 //     SELECTION CODE     //
@@ -223,8 +323,8 @@ void selectiongrid_set_highlight(entity e, engine& g, u32 index, bool enter) {
 
 void selectiongrid_navigation(entity e, engine& g, u32 old_index, u32 new_index) {
     auto& select = g.ecs.get<ecs::c_selection>(e);
-    if (u32(old_index) < select.num_elements()) {
-        selectiongrid_set_highlight(e, g, old_index, false);
+    if (select.highlight_index() < select.num_elements()) {
+         selectiongrid_set_highlight(e, g, select.highlight_index(), false);
     }
     if (u32(new_index) < select.num_elements()) {
         selectiongrid_set_highlight(e, g, new_index, true);
