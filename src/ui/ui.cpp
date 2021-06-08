@@ -2,31 +2,44 @@
 #include "ui.h"
 
 
-bool cursorevent_to_navevent(entity e, event_cursor& ev, engine& g) {
+bool cursorevent_to_navevent(entity e, engine& g, sprite_coords ev_pos) {
     auto& w = g.ecs.get<ecs::c_widget>(e);
     if (w.on_navigate == nullptr) return false;
 
     auto& select = g.ecs.get<ecs::c_selection>(e);
     rect<f32> grid_entry = g.ecs.get<ecs::c_display>(e).sprites(0).get_dimensions(0);
-    point<u16> new_active = [&] () {;
-        if (!test_collision(g.ecs.get<ecs::c_display>(e).sprites(0).get_dimensions(), ev.pos().to<f32>())) {
+    point<u16> cursor_focus = [&] () {;
+        if (!test_collision(g.ecs.get<ecs::c_display>(e).sprites(0).get_dimensions(), ev_pos)) {
             return point<u16>(65535, 65535);
         } else {
-            return ((ev.pos().to<f32>() - grid_entry.origin) / grid_entry.size).to<u16>();
+            return ((ev_pos - grid_entry.origin) / grid_entry.size).to<u16>();
         }
     }();
+    int focus_index = project_to_1D(cursor_focus, select.grid_size.x);
 
     if (g.ecs.exists<ecs::c_checkbox>(e)) {
-        checkbox_navigation(e, g, project_to_1D(select.active, select.grid_size.x), project_to_1D(new_active, select.grid_size.x));
-        selectiongrid_navigation(e, g, project_to_1D(select.active, select.grid_size.x), project_to_1D(new_active, select.grid_size.x));
+        checkbox_navigation(e, g, select.highlight_index(), focus_index);
+        selectiongrid_navigation(e, g, select.highlight_index(), focus_index);
     } else if (g.ecs.exists<ecs::c_slider>(e)) {
         if (g.ui.cursor == e) {
-            slider_navigation(e, g, 0, ev.pos().x);
+            slider_navigation(e, g, 0, ev_pos.x);
         } else {
-            selectiongrid_navigation(e, g, project_to_1D(select.active, select.grid_size.x), project_to_1D(new_active, select.grid_size.x));
+            selectiongrid_navigation(e, g, select.highlight_index(), focus_index);
         }
+    } else if (g.ecs.exists<ecs::c_button>(e)) {
+        auto& button = g.ecs.get<ecs::c_button>(e);
+        auto& select = g.ecs.get<ecs::c_selection>(e);
+        int new_active;
+        if (focus_index < button.num_buttons) {
+            if (test_collision(g.ecs.get<ecs::c_display>(e).sprites(button.sprite_index).get_dimensions(focus_index), ev_pos)) {
+                new_active = focus_index;
+            } else {
+                new_active = 65535;
+            }
+        }
+        button_navigation(e, g, select.highlight_index(), new_active);
     } else {
-        w.on_navigate(e, g, project_to_1D(select.active, select.grid_size.x), project_to_1D(new_active, select.grid_size.x));
+        w.on_navigate(e, g, select.highlight_index(), focus_index);
     }
     return true;
 }
@@ -61,20 +74,27 @@ bool handle_button(input_event& e_in, engine& g) {
     g.ui.hover_timer.start();
 
     entity dest = at_cursor<event_mousebutton::id>(g.ui.root, g, ev.pos());
+    entity held = g.ui.cursor;
     if (ev.release()) {
         g.ui.cursor = 65535;
     } else {
         g.ui.cursor = dest;
-        return true;
     }
-
     while (g.ecs.get<ecs::c_widget>(dest).on_activate == nullptr) {
         dest = g.ecs.get<ecs::c_widget>(dest).parent;
         if (dest == g.ui.root) break;
     }
     if (dest != 65535 && dest != g.ui.root) {
-        g.ecs.get<ecs::c_widget>(dest).on_activate(dest, g);
+        g.ecs.get<ecs::c_widget>(dest).on_activate(dest, g, ev.release());
         return true;
+    }
+    // send a nav event when releasing the cursor away from the held entity
+    if (ev.release() && held != dest && held != 65535) {
+        cursorevent_to_navevent(held, g, g.ui.last_position.to<f32>());
+        ecs::c_widget::activation_action function = g.ecs.get<ecs::c_widget>(held).on_activate;
+        if (function != nullptr) {
+            function(held, g, true);
+        }
     }
 
     world_coords h (ev.pos().x / 64.0f, ev.pos().y / 64.0f);
@@ -102,7 +122,7 @@ bool handle_keypress(input_event& e_in, engine& g) {
             if (e.release())  return false;
             entity active = g.ui.active_interact;
             if (active == 65535)  return false;
-            g.ecs.get<ecs::c_widget>(active).on_activate(active, g);
+            g.ecs.get<ecs::c_widget>(active).on_activate(active, g, e.release());
             break;
         }
         case command::toggle_inventory: {
@@ -161,15 +181,15 @@ bool handle_cursor(input_event& e_in, engine& g) {
 
     g.ui.last_position = e.pos();
     if (start == dest)  {
-        cursorevent_to_navevent(start, e, g);
+        cursorevent_to_navevent(start, g, e.pos().to<f32>());
         return true;
     }
     // The cursor is switching between entities, give focus transition events
     if (dest != 65535 && dest != g.ui.root) {
-        cursorevent_to_navevent(dest, e, g);
+        cursorevent_to_navevent(dest, g, e.pos().to<f32>());
     }
     if (start != 65535 && start != g.ui.root) {
-        cursorevent_to_navevent(start, e, g);
+        cursorevent_to_navevent(start,g, e.pos().to<f32>());
     }
 
     return true;

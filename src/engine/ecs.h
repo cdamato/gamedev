@@ -175,9 +175,9 @@ struct c_widget : public component {
 	entity parent = 65535;
 	std::vector <entity> children;
 
-	using activation_action = void (*)(entity, engine&);
+	using activation_action = void (*)(entity, engine&, bool);
 	activation_action on_activate = nullptr;
-	using navigation_action = void (*)(entity, engine&, int, int);
+	using navigation_action = void (*)(entity, engine&, u32, u32);
 	navigation_action on_navigate = nullptr;
 };
 
@@ -193,12 +193,14 @@ struct c_text : public component {
 
 // Represents a navigable grid of smaller components of the same type. For widgets using this, the first sprite must be the container.
 struct c_selection : public component {
-	point <u16> active{};
-	point <u16> secondary_active{}; // Used for e.g. tracking the old item position in inventory, while highlighting the new hover location.
-	size <u16> grid_size{};
-	int sprite_index;
+	point <u16> active {};
+	point <u16> highlight {};
+	size <u16> grid_size {};
+    u32 sprite_index;
 
-	int active_index() { return active.x + (active.y * grid_size.x); }
+	u32 num_elements() { return grid_size.x * grid_size.y; }
+    u32 active_index() { return active.x + (active.y * grid_size.x); }
+    u32 highlight_index() { return highlight.x + (highlight.y * grid_size.x); }
 };
 
 struct c_checkbox : public component {
@@ -212,6 +214,13 @@ struct c_slider : public component {
 	std::array<int, 4> current_values;
 	std::array<int, 4> max_values;
 	std::array<int, 4> increments;
+};
+
+// Stores data for 4 button
+struct c_button : public component {
+    std::array<c_widget::activation_action, 4> callbacks;
+    int num_buttons;
+    int sprite_index;
 };
 
 ///////////////////////////////
@@ -229,7 +238,7 @@ struct type_tag {};
     m(c_health) m(c_damage) m(c_weapon_pool) \
     m(c_enemy)\
     m(c_player) m(c_inventory) m(c_mapdata)\
-    m(c_widget) m(c_selection) m(c_text) m(c_checkbox) m(c_slider)\
+    m(c_widget) m(c_selection) m(c_text) m(c_checkbox) m(c_slider) m(c_button)\
 
 #define POOL_NAME(T) T ## _pool
 #define GENERATE_ACCESS_FUNCTIONS(T) constexpr pool<T>& get_pool(type_tag<T>) { return POOL_NAME(T); }

@@ -5,6 +5,20 @@
 void transfer_item(entity , engine& g, ecs::c_inventory&);
 
 
+
+void inventory_navigation(entity e, engine& g, u32 old_target, u32 new_target) {
+    ecs::c_selection& select = g.ecs.get<ecs::c_selection>(e);
+    if (select.active.x != 65535 && select.active.y != 65535) {
+        auto& spr = g.ecs.get<ecs::c_display>(e);
+        size<f32> item_size = spr.sprites(0).get_dimensions(0).size;
+        sprite_coords p (g.ui.last_position.to<f32>() - (item_size / 6));
+        size_t box_index = project_to_1D(select.active, select.grid_size.x);
+        spr.sprites(1).set_pos(p, item_size, box_index);
+        spr.sprites(2).set_pos(p, item_size, box_index);
+    }
+    selectiongrid_navigation(e, g, old_target, new_target);
+}
+
 // Given a gridsquare, this function returns the top left sprite coordinate corresponding to it
 sprite_coords snap_to_grid(ecs::c_display& spr, point<u16> in) {
     sprite_coords tl = spr.sprites(0).get_dimensions().origin;
@@ -45,61 +59,47 @@ void empty_slot(size_t index, sprite_coords pos, entity e, engine& g) {
 }
 
 void place_item(entity e, engine& g, ecs::c_selection& select, ecs::c_inventory& inv, ecs::c_display& spr) {
-    // box_index represents the position the currently held item was taken from
-    point<u16> box_point = g.ecs.get<ecs::c_selection>(e).secondary_active;
-    size_t box_index = box_point.x + (box_point.y * select.grid_size.x);
-
-    ecs::c_inventory::item held = inv.data.get(box_index);
-    empty_slot(box_index, snap_to_grid(spr, box_point), e, g);
-    inv.data.remove(box_index);
+    ecs::c_inventory::item held = inv.data.get(select.active_index());
+    empty_slot(select.active_index(), snap_to_grid(spr, select.active), e, g);
+    inv.data.remove(select.active_index());
 
 
-    if (inv.data.exists(select.active_index())) {
-        ecs::c_inventory::item highlight = inv.data.get(select.active_index());
-        inv.data.remove(select.active_index());
-        inv.data.add(box_index, highlight);
-        write_item_to_slot(box_index, snap_to_grid(spr, select.secondary_active), e, highlight, g);
-        pickup_item(e, snap_to_grid(spr, box_point), g);
+    if (inv.data.exists(select.highlight_index())) {
+        ecs::c_inventory::item highlight = inv.data.get(select.highlight_index());
+        inv.data.remove(select.highlight_index());
+        inv.data.add(select.active_index(), highlight);
+        write_item_to_slot(select.active_index(), snap_to_grid(spr, select.active), e, highlight, g);
+        pickup_item(e, snap_to_grid(spr, select.active), g);
     } else {
-        set_square_highlight(e, g, project_to_1D(select.secondary_active, select.grid_size.x), false);
-        select.secondary_active = point<u16>(65535, 65535);
+        set_square_highlight(e, g, project_to_1D(select.active, select.grid_size.x), false);
+        select.active = point<u16>(65535, 65535);
     }
 
-    inv.data.add(select.active_index(), held);
-    write_item_to_slot(select.active_index(), snap_to_grid(spr, select.active), e, held, g);
+    inv.data.add(select.highlight_index(), held);
+    write_item_to_slot(select.highlight_index(), snap_to_grid(spr, select.highlight), e, held, g);
 }
 
-void inventory_activation(entity e, engine& g) {
+void inventory_activation(entity e, engine& g, bool release) {
     ecs::c_inventory& inv = g.ecs.get<ecs::c_inventory>(g.player_id());
     ecs::c_selection& select = g.ecs.get<ecs::c_selection>(e);
     ecs::c_display& spr = g.ecs.get<ecs::c_display>(e);
 
-	// There's no item "in hand", try and pick one up
-	if (select.secondary_active.x == 65535 || select.secondary_active.y == 65535) {
-        if (inv.data.exists(select.active_index())) {
-            pickup_item(e, snap_to_grid(spr, select.active), g);
-            select.secondary_active = select.active;
+    // You already have an item, try to place or swap it.
+    if (select.active_index() < select.num_elements() && release == false
+        && select.highlight_index() < select.num_elements() ) {
+        place_item(e, g, select, inv, spr);
+    } else if (select.highlight_index() < select.num_elements() && release == false)  {
+        if (inv.data.exists(select.highlight_index())) {
+            pickup_item(e, snap_to_grid(spr, select.highlight), g);
+            select.active = select.highlight;
         }
 	} else if (g.ui.focus != e) { // There's another inventory widget active
         entity parent = g.ecs.get<ecs::c_widget>(e).parent;
         transfer_item(parent, g, inv);
-	} else {  // You already have an item, try to place or swap it.
-        place_item(e, g, select, inv, spr);
 	}
+    inventory_navigation(e, g, select.active_index(), select.active_index());
 }
 
-void inventory_navigation(entity e, engine& g, int old_target, int new_target) {
-    ecs::c_selection& select = g.ecs.get<ecs::c_selection>(e);
-    if (select.secondary_active.x != 65535 && select.secondary_active.y != 65535) {
-        auto& spr = g.ecs.get<ecs::c_display>(e);
-        size<f32> item_size = spr.sprites(0).get_dimensions(0).size;
-        sprite_coords p (g.ui.last_position.to<f32>() - (item_size / 2));
-        size_t box_index = project_to_1D(select.secondary_active, select.grid_size.x);
-        spr.sprites(1).set_pos(p, item_size, box_index);
-        spr.sprites(2).set_pos(p, item_size, box_index);
-   }
-   selectiongrid_navigation(e, g, old_target, new_target);
-}
 
 void inventory_init(entity e, engine& g, entity parent, ecs::c_inventory& inv, screen_coords origin) {
 	g.ui.focus = e;
@@ -111,7 +111,7 @@ void inventory_init(entity e, engine& g, entity parent, ecs::c_inventory& inv, s
     w.on_navigate = inventory_navigation;
 
 	select.grid_size = size<u16>(9, 4);
-	select.secondary_active = point<u16>(65535, 65535);
+	select.active = point<u16>(65535, 65535);
 	sprite_coords element_size(64, 64);
 	rect<f32> dim(origin.to<f32>(), sprite_coords(select.grid_size.x * element_size.x, select.grid_size.y * element_size.y));
 
@@ -157,10 +157,10 @@ void transfer_item(entity e, engine& g, ecs::c_inventory& b_inv) {
     ecs::c_inventory& a_inv = &b_inv == &player_inv ? storage : player_inv;
     ecs::c_selection& a_select = g.ecs.get<ecs::c_selection>(a);
     ecs::c_display& a_spr = g.ecs.get<ecs::c_display>(a);
-    size_t held_index = project_to_1D(a_select.secondary_active, a_select.grid_size.x);
+    size_t held_index = project_to_1D(a_select.active, a_select.grid_size.x);
 
     ecs::c_inventory::item held = a_inv.data.get(held_index);
-    empty_slot(held_index, snap_to_grid(a_spr, a_select.secondary_active), a, g);
+    empty_slot(held_index, snap_to_grid(a_spr, a_select.active), a, g);
     a_inv.data.remove(held_index);
 
 
@@ -176,17 +176,17 @@ void transfer_item(entity e, engine& g, ecs::c_inventory& b_inv) {
     ecs::c_display& b_spr = g.ecs.get<ecs::c_display>(b);
 
 
-    if (b_inv.data.exists(b_select.active_index())) {
-        ecs::c_inventory::item highlight = b_inv.data.get(b_select.active_index());
-        b_inv.data.remove(b_select.active_index());
+    if (b_inv.data.exists(b_select.highlight_index())) {
+        ecs::c_inventory::item highlight = b_inv.data.get(b_select.highlight_index());
+        b_inv.data.remove(b_select.highlight_index());
         a_inv.data.add(held_index, highlight);
-        write_item_to_slot(held_index, snap_to_grid(a_spr, a_select.active), a, highlight, g);
-        pickup_item(a, snap_to_grid(a_spr, a_select.secondary_active), g);
+        write_item_to_slot(held_index, snap_to_grid(a_spr, a_select.highlight), a, highlight, g);
+        pickup_item(a, snap_to_grid(a_spr, a_select.active), g);
 
     }
 
-    b_inv.data.add(b_select.active_index(), held);
-    write_item_to_slot(b_select.active_index(), snap_to_grid(b_spr, b_select.active), b, held, g);
+    b_inv.data.add(b_select.highlight_index(), held);
+    write_item_to_slot(b_select.highlight_index(), snap_to_grid(b_spr, b_select.highlight), b, held, g);
 }
 
 void inv_transfer_init(entity e, engine& g, ecs::c_inventory& storage_inv) {

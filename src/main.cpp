@@ -16,7 +16,7 @@ void test_enemies_gone(engine& e) {
     }
 }
 
-void activate_dungeon(entity e, engine& g) {
+void activate_dungeon(entity e, engine& g, bool release) {
     g.destroy_entity(e);
     g.in_dungeon = true;
     world_coords map_size(32, 32);
@@ -30,7 +30,7 @@ void activate_dungeon(entity e, engine& g) {
 
 
 
-void storage_chest_init(entity e, engine& g) {
+void storage_chest_init(entity e, engine& g, bool release) {
     if (g.command_states.test(command::toggle_inventory)) {
         g.destroy_entity(g.ui.focus);
         g.ui.focus = 65535;
@@ -42,7 +42,7 @@ void storage_chest_init(entity e, engine& g) {
 }
 
 
-void init_npc_hub(entity e, engine& g) {
+void init_npc_hub(entity e, engine& g, bool release) {
     g.destroy_entity(e);
     printf("clicked\n");
     config_parser p("config/main_hub.txt");
@@ -101,13 +101,17 @@ void init_npc_hub(entity e, engine& g) {
     });
 }
 
+void haha(entity e, engine&, bool release) {
 
+}
 void init_main_menu(engine& eng) {
     eng.create_entity([&](entity e, engine& g) {
-        basic_sprite_setup(e, g, render_layers::ui, sprite_coords(100, 500), sprite_coords(64, 64), 0, "button");
-        make_widget(e, g, eng.ui.root);
-        g.ecs.get<ecs::c_widget>(e).on_activate = init_npc_hub;
+        initialize_button_group(e, g, 2);
+        add_button(e, g, sprite_coords(100, 400), sprite_coords(64, 64), 0, init_npc_hub, "!!");
+        add_button(e, g, sprite_coords(196, 400), sprite_coords(64, 64), 1, haha, "??");
+
     });
+
 }
 
 
