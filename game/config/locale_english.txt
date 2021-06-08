@@ -1,0 +1,2 @@
+MM_BUTTON_1 = "!!"
+MM_BUTTON_2 = "??"

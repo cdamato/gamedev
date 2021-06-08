@@ -1,3 +1,4 @@
+#include <common/parser.h>
 #include <numeric>
 #include <atomic>
 #include <common/png.h>
@@ -407,15 +408,29 @@ void s_shooting::run(pool<c_display>& sprites, pool<c_weapon_pool> weapons, c_pl
 //     S_TEXT     //
 ////////////////////
 
+void import_locale(std::unordered_map<std::string, std::string>& locale) {
+    config_parser p("config/locale_english.txt");
+    auto d = p.parse();
+    for (auto it = d->begin(); it != d->end(); it++) {
+        const config_string* list = dynamic_cast<const config_string*>((&it->second)->get());
+        std::string key = it->first;
+        std::string value = dynamic_cast<config_string*>((&it->second)->get())->get();
+        locale[key] = value;
+    }
+}
+
 struct s_text::impl {
     FT_Library library;
     FT_Face face;
+
+    std::unordered_map<std::string, std::string> locale_lookup;
 };
 
 s_text::s_text() {
     data = new impl;
     FT_Init_FreeType( &data->library );
     FT_New_Face( data->library, "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 0, &data->face);
+    import_locale(data->locale_lookup);
 }
 
 f32 calc_fontsize(size<f32> box) {
@@ -491,13 +506,22 @@ void s_text::run(pool<c_text>& texts, pool<c_display>& displays) {
     for(auto text : texts) {
         for (auto entry : text.text_entries) {
             if (entry.text == "") continue;
+
+            std::string string_to_render = [&]() {
+               auto it = data->locale_lookup.find(entry.text);
+               if (it == data->locale_lookup.end()) {
+                   return entry.text;
+               } else {
+                   return it->second;
+               }
+            }();
             auto dim = displays.get(text.parent).sprites(text.sprite_index).get_dimensions(entry.quad_index);
-            u8 num_lines = num_newlines(entry.text);
+            u8 num_lines = num_newlines(string_to_render);
             f32 fontsize = (calc_fontsize(dim.size) / num_lines) / 2;
 
             FT_Set_Char_Size( data->face, fontsize * 64, 0, 100, 0 );
 
-            render_line(data->face, entry.text, tex->image_data.data(), pen, atlas_size.x, dim.size.y / num_lines, entry.text_color);
+            render_line(data->face, string_to_render, tex->image_data.data(), pen, atlas_size.x, dim.size.y / num_lines, entry.text_color);
 
             point<f32> pos(0, pen.y / static_cast<f32>(atlas_size.y));
             size<f32> new_dim(dim.size.x / static_cast<f32>(atlas_size.x), dim.size.y / static_cast<f32>(atlas_size.y));
