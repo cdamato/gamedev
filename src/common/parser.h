@@ -36,8 +36,8 @@ public:
         return ptr ? dynamic_cast<const config_type<value_type>*>(ptr)->get() : value_type();
     }
     const config_object* get(const std::string& name) const noexcept;
-    auto begin() { return map.begin(); }
-    auto end() { return map.end(); }
+    auto begin() const { return map.begin(); }
+    auto end() const { return map.end(); }
     std::unordered_map<std::string, std::unique_ptr<config_object>> map;
 private:
 
@@ -61,6 +61,7 @@ private:
 using config_bool = config_type<bool>;
 using config_int = config_type<int>;
 using config_string = config_type<std::string>;
+using parsed_file = std::unique_ptr<config_dict>;
 
 class config_parser {
 public:
@@ -100,9 +101,11 @@ public:
     template <typename T>
     void append(std::string key, T value) { data += tab_buffer() + key + " = " + format_value(value) + "\n"; }
     void append(std::string text) { data += tab_buffer() + text + '\n'; }
+    template <typename... Args>
+    void append(std::string key, Args... args) { data += tab_buffer() + key + " = {" + format_value_variadic(args...) + "}\n"; }
     // These functions handle formatting a collection of key/value pairs
     void open_dict(std::string text) {
-        data += tab_buffer() + text + " = {\n";
+        data += tab_buffer() + text + " {\n";
         num_indents++;
     }
     void close_dict() {
@@ -112,6 +115,10 @@ public:
 private:
     std::string format_value(std::string value) { return "\"" + value + "\"";};
     std::string format_value(int value) { return std::to_string(value); };
+    template <typename T>
+    std::string format_value_variadic(T value) { return format_value(value); };
+    template <typename T, typename... Args>
+    std::string format_value_variadic(T value, Args... args) { return format_value(value) + ", " + format_value_variadic(args...); };
     // Generate tab buffers, for indentation.
     std::string tab_buffer() {
         std::string tab_buffer = "";

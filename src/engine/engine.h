@@ -3,6 +3,8 @@
 
 #include "ecs.h"
 #include "display.h"
+#include "game_state.h"
+#include "game_data.h"
 #include <unordered_map>
 #include <memory>
 
@@ -48,12 +50,14 @@ private:
     std::vector<logic_func> logic;
 };
 
-class engine {
+class engine : no_copy, no_move {
 public:
     settings_manager settings;
 	ecs::ecs_engine ecs;
 	ui_manager ui;
     logic_manager logic;
+	game_state_manager game_state;
+	game_data_manager game_data;
     display::texture_manager& textures() { return display.textures(); }
     display::window_impl& window() { return display.get_window(); }
 
