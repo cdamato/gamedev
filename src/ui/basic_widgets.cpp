@@ -223,6 +223,7 @@ void dropdown_set_text(entity e, engine& g, int index) {
     int dropdown_index = 0;
     if (dropdown_index < selection.num_elements()) {
         text.text_entries[dropdown_index].text = dropdown.dropdowns[dropdown_index].entries[index];
+        text.text_entries[dropdown_index].regen = true;
     }
 }
 
@@ -232,7 +233,7 @@ void dropdown_menu_activation(entity e, engine& g, bool release) {
     auto& selection = g.ecs.get<ecs::c_selection>(e);
     dropdown_set_text(parent, g, selection.active_index());
     g.ui.focus = parent;
-    g.destroy_entity(e);
+  //  g.destroy_entity(e);
 }
 
 void open_dropdown(entity e, engine& g, entity parent, rect<f32> box, ecs::c_dropdown::dropdown_data dropdown_data) {

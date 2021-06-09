@@ -186,6 +186,7 @@ struct c_text : public component {
 		u8 quad_index = 0;
 		std::string text;
 		color text_color = color(0, 0, 0, 0);
+		bool regen = false;
 	};
 	u8 sprite_index = 0;
 	std::vector <text_entry> text_entries;

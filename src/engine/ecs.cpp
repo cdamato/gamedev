@@ -493,11 +493,18 @@ void s_text::run(pool<c_text>& texts, pool<c_display>& displays) {
             atlas_size.y += dim.size.y;
             atlas_size.x = std::max(dim.size.x, atlas_size.x);
             num_text_entries++;
+            if (entry.regen) {
+                regenerate = true;
+                entry.regen = false;
+            }
         }
     }
 
+
     if (num_text_entries != last_atlassize) regenerate = true;
     if (num_text_entries == 0) return;
+    last_atlassize = num_text_entries;
+    if (regenerate == false) return;
 
     tex->z_index = 8;
     tex->image_data = image(std::vector<u8>(atlas_size.x * atlas_size.y * 4, 0), atlas_size.to<u16>());
@@ -531,5 +538,6 @@ void s_text::run(pool<c_text>& texts, pool<c_display>& displays) {
         }
         displays.get(text.parent).sprites(text.sprite_index).tex = tex;
     }
+    regenerate = false;
 }
 }
