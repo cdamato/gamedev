@@ -1,7 +1,7 @@
 #include "engine.h"
 #include <common/parser.h>
 #include <world/basic_entity_funcs.h>
-
+#include <SDL2/SDL.h>
 
 void engine::run_tick() {
     world_coords start_pos = ecs.get<ecs::c_display>(player_id()).get_dimensions().origin;
@@ -64,13 +64,18 @@ void logic_manager::remove(logic_func func) {
 
 
 settings_manager::settings_manager() {
-    bindings['w'] = command::move_up;
-    bindings['a'] = command::move_left;
-    bindings['s'] = command::move_down;
-    bindings['d'] = command::move_right;
-    bindings['e'] = command::interact;
-    bindings['\t'] = command::toggle_inventory;
-    bindings['o'] = command::toggle_options_menu;
+    bindings[SDLK_w] = command::move_up;
+    bindings[SDLK_a] = command::move_left;
+    bindings[SDLK_s] = command::move_down;
+    bindings[SDLK_d] = command::move_right;
+    bindings[SDLK_e] = command::interact;
+    bindings[SDLK_TAB] = command::toggle_inventory;
+    bindings[SDLK_o] = command::toggle_options_menu;
+    bindings[SDLK_UP] = command::nav_up;
+    bindings[SDLK_LEFT] = command::nav_left;
+    bindings[SDLK_DOWN] = command::nav_down;
+    bindings[SDLK_RIGHT] = command::nav_right;
+    bindings[SDLK_RETURN] = command::nav_activate;
 
     config_parser p("settings.txt");
     auto d = p.parse();

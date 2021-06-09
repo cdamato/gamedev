@@ -53,7 +53,12 @@ enum command {
 	move_right,
 	interact,
 	toggle_inventory,
-	toggle_options_menu
+	toggle_options_menu,
+	nav_up,
+	nav_left,
+	nav_down,
+	nav_right,
+	nav_activate,
 };
 
 #endif // EVENT_H

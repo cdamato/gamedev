@@ -9,12 +9,16 @@ void transfer_item(entity , engine& g, ecs::c_inventory&);
 void inventory_navigation(entity e, engine& g, u32 old_target, u32 new_target) {
     ecs::c_selection& select = g.ecs.get<ecs::c_selection>(e);
     if (select.active.x != 65535 && select.active.y != 65535) {
+        sprite_coords new_position;
         auto& spr = g.ecs.get<ecs::c_display>(e);
         size<f32> item_size = spr.sprites(0).get_dimensions(0).size;
-        sprite_coords p (g.ui.last_position.to<f32>() - (item_size / 6));
-        size_t box_index = project_to_1D(select.active, select.grid_size.x);
-        spr.sprites(1).set_pos(p, item_size, box_index);
-        spr.sprites(2).set_pos(p, item_size, box_index);
+        if (g.ui.last_position != screen_coords(65535, 65535)) {
+            new_position = sprite_coords(g.ui.last_position.to<f32>() - (item_size / 6));
+        } else  {
+            new_position = spr.sprites(0).get_dimensions(new_target).origin + (item_size / 6);
+        }
+        spr.sprites(1).set_pos(new_position, item_size, select.active_index());
+        spr.sprites(2).set_pos(new_position, item_size, select.active_index());
     }
     selectiongrid_navigation(e, g, old_target, new_target);
 }
