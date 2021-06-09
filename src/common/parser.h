@@ -90,5 +90,39 @@ private:
 
 
 
+class dsl_printer {
+public:
+    void write(std::string filename) {
+        std::ofstream out(filename);
+        out << data;
+    }
+    // Append functions add text to the buffer, printing a newline afterward
+    template <typename T>
+    void append(std::string key, T value) { data += tab_buffer() + key + " = " + format_value(value) + "\n"; }
+    void append(std::string text) { data += tab_buffer() + text + '\n'; }
+    // These functions handle formatting a collection of key/value pairs
+    void open_dict(std::string text) {
+        data += tab_buffer() + text + " = {\n";
+        num_indents++;
+    }
+    void close_dict() {
+        num_indents--;
+        data += tab_buffer() + "}";
+    }
+private:
+    std::string format_value(std::string value) { return "\"" + value + "\"";};
+    std::string format_value(int value) { return std::to_string(value); };
+    // Generate tab buffers, for indentation.
+    std::string tab_buffer() {
+        std::string tab_buffer = "";
+        for (int i = 0; i < num_indents; i++) {
+            tab_buffer += "    ";
+        }
+        return tab_buffer;
+    }
+
+    std::string data = "";
+    int num_indents = 0;
+};
 
 #endif //PARSE_H
