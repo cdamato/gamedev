@@ -6,6 +6,11 @@ void transfer_item(entity , engine& g, ecs::c_inventory&);
 
 
 
+void inventory_hover(entity e, engine& g) {
+
+}
+
+
 void inventory_navigation(entity e, engine& g, u32 old_target, u32 new_target) {
     ecs::c_selection& select = g.ecs.get<ecs::c_selection>(e);
     if (select.active.x != 65535 && select.active.y != 65535) {
@@ -113,6 +118,7 @@ void inventory_init(entity e, engine& g, entity parent, ecs::c_inventory& inv, s
     auto& w = g.ecs.get<ecs::c_widget>(e);
     w.on_activate = inventory_activation;
     w.on_navigate = inventory_navigation;
+    w.on_hover = inventory_hover;
 
 	select.grid_size = size<u16>(9, 4);
 	select.active = point<u16>(65535, 65535);

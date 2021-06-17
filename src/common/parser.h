@@ -99,18 +99,20 @@ public:
     }
     // Append functions add text to the buffer, printing a newline afterward
     template <typename T>
-    void append(std::string key, T value) { data += tab_buffer() + key + " = " + format_value(value) + "\n"; }
-    void append(std::string text) { data += tab_buffer() + text + '\n'; }
+    void append(std::string key, T value) { data += tab_buffer + key + " = " + format_value(value) + "\n"; }
+    void append(std::string text) { data += tab_buffer + text + '\n'; }
     template <typename... Args>
-    void append(std::string key, Args... args) { data += tab_buffer() + key + " = {" + format_value_variadic(args...) + "}\n"; }
+    void append(std::string key, Args... args) { data += tab_buffer + key + " = {" + format_value_variadic(args...) + "}\n"; }
     // These functions handle formatting a collection of key/value pairs
     void open_dict(std::string text) {
-        data += tab_buffer() + text + " {\n";
+        data += tab_buffer + text + " {\n";
         num_indents++;
+        regen_tab_buffer();
     }
     void close_dict() {
         num_indents--;
-        data += tab_buffer() + "}";
+        regen_tab_buffer();
+        data += tab_buffer + "}";
     }
 private:
     std::string format_value(std::string value) { return "\"" + value + "\"";};
@@ -120,14 +122,14 @@ private:
     template <typename T, typename... Args>
     std::string format_value_variadic(T value, Args... args) { return format_value(value) + ", " + format_value_variadic(args...); };
     // Generate tab buffers, for indentation.
-    std::string tab_buffer() {
-        std::string tab_buffer = "";
+    void regen_tab_buffer() {
+        std::string new_buffer = "";
         for (int i = 0; i < num_indents; i++) {
-            tab_buffer += "    ";
+            new_buffer += "    ";
         }
-        return tab_buffer;
+        tab_buffer = new_buffer;
     }
-
+    std::string tab_buffer = "";
     std::string data = "";
     int num_indents = 0;
 };

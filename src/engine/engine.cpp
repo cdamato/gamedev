@@ -16,8 +16,15 @@ void engine::run_tick() {
     int h = ui.hover_timer.elapsed<timer::ms>().count();
     if (h >= 1500 && ui.hover_active == false) {
         ui.hover_active = true;
-        //event a;
-        //handle_hover(a, *this);
+        entity focus = ui.focus;
+        if (focus != 65535 && focus != ui.root) {
+            auto& widget = ecs.get<ecs::c_widget>(focus);
+            if (widget.on_hover != nullptr) {
+                widget.on_hover(focus, *this);
+            }
+        }
+    } else if (ui.hover_active == true && h < 1500) { //timer has been reset
+
     }
 
     textures().update(ecs.systems.health.get_texture());

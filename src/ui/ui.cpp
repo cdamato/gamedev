@@ -48,6 +48,7 @@ int cursorpos_to_navindex(entity e, engine& g, sprite_coords ev_pos) {
     return 65535;
 }
 bool send_navevent(entity e, engine& g, int new_index) {
+    g.ui.hover_timer.start();
     auto& w = g.ecs.get<ecs::c_widget>(e);
     auto& select = g.ecs.get<ecs::c_selection>(e);
 
@@ -102,6 +103,7 @@ entity at_cursor(entity e, engine& g, screen_coords cursor) {
 }
 
 void send_actionevent(entity e, engine& g, bool release) {
+    g.ui.hover_timer.start();
     if (e != 65535 && e != g.ui.root) {
         g.ecs.get<ecs::c_widget>(e).on_activate(e, g, release);
     }
@@ -221,7 +223,6 @@ bool handle_keypress(input_event& e_in, engine& g) {
 
 bool handle_cursor(input_event& e_in, engine& g) {
     auto& e = dynamic_cast<event_cursor &>(e_in);
-    g.ui.hover_timer.start();
     //if (g.ui.cursor != 65535) g.ecs.get<ecs::c_event_callbacks>(g.ui.cursor).run_event(e);
 
     entity dest = at_cursor<event_cursor::id>(g.ui.root, g, e.pos());

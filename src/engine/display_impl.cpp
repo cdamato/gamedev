@@ -161,7 +161,7 @@ void display_manager::initialize(display_types mode, screen_coords resolution) {
     _renderer = std::unique_ptr<renderer>(new renderer_software);
 #endif //OPENGL
     textures().load_textures();
-    get_window().set_vsync(true);
+    get_window().set_vsync(false);
 }
 
 //////////////////////////////////////////////////////////////

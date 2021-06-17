@@ -80,4 +80,6 @@ void make_widget(entity e, engine& g, entity parent);
 void inventory_init(entity, engine&, entity, ecs::c_inventory& inv, screen_coords);
 void options_menu_init(entity, engine&, entity, screen_coords);
 
+
+
 #endif //UI_HELPER_FUNCS_H
