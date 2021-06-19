@@ -2,7 +2,7 @@ SOURCE_DIRS := src/common/ src/ecs/ src/engine/ src/display/ src/world/ src/ui/
 TEST_DIRS := tests/
 
 CPP_DEFINES :=
-LINUX_LIBS := Xext freetype X11 GL SDL2
+LINUX_LIBS := Xext freetype X11 GL SDL2 icuuc harfbuzz
 AMD64_FLAGS := -Darch_amd64
 DEBUG_FLAGS := -Wno-unused-parameter -fsanitize=undefined -fsanitize=address -g3 -Wall -Wextra
 

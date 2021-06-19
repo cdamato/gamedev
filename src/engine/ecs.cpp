@@ -1,3 +1,8 @@
+
+#include <unicode/unistr.h>
+#include <unicode/stringpiece.h>
+#include <unicode/brkiter.h>
+#include <iostream>
 #include <common/parser.h>
 #include <numeric>
 #include <atomic>
@@ -419,69 +424,147 @@ void import_locale(std::unordered_map<std::string, std::string>& locale) {
     }
 }
 
+#include <harfbuzz/hb.h>
+#include <harfbuzz/hb-ft.h>
+
 struct s_text::impl {
     FT_Library library;
     FT_Face face;
+    hb_blob_t* blob = hb_blob_create_from_file("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf");
+
+    hb_font_t* font;
 
     std::unordered_map<std::string, std::string> locale_lookup;
 };
 
 s_text::s_text() {
     data = new impl;
-    FT_Init_FreeType( &data->library );
-    FT_New_Face( data->library, "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 0, &data->face);
+    FT_Init_FreeType(&data->library );
+    FT_New_Face(data->library, "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 0, &data->face);
+    FT_Set_Char_Size( data->face, 16 * 64, 0, 100, 0 );
     import_locale(data->locale_lookup);
+    data->font = hb_ft_font_create_referenced(data->face);
+    hb_ft_font_set_funcs(data->font);
+    /*
+    hb_buffer_destroy(buf);
+    hb_font_destroy(font);
+    hb_face_destroy(face);
+    hb_blob_destroy(blob);
+    */
 }
 
-f32 calc_fontsize(size<f32> box) {
-    u8 dpi = 96;
-    f32 lineheight_inches = ((box.y) / static_cast<f32>(dpi));
-    return (72.0f / (1.0f / lineheight_inches));
-}
 
-u8 num_newlines(std::string text) {
-    u32 num_lines = 1;
-    size_t index = 0;
-    for (;;) {
-        index = text.find("\n", index + 1);
-        if (index == std::string::npos) break;
-        num_lines++;
+
+
+std::vector<int> get_newlines(std::string& text) {
+    icu::UnicodeString s(text.c_str());
+    UErrorCode status = U_ZERO_ERROR;
+    icu::BreakIterator* char_locations = icu::BreakIterator::createCharacterInstance(icu::Locale::getUS(), status);
+    char_locations->setText(s);
+    i32 num_chars = char_locations->preceding(text.length());
+    if (num_chars < 50) {
+        return std::vector<int>();
     }
-    return num_lines;
-}
 
-void copy_bitmap(std::vector<u8>& h, FT_Bitmap* bmp,point<u16> pen, int width, color text_color) {
-    for(size_t y = 0; y < bmp->rows; y++ ){
-        for (size_t x = 0; x < bmp->width; x++) {
-            size_t src_index = (x + (y * (bmp->width)));
-            size_t dst_index = ((x + pen.x) + ((y + pen.y) * width)) * 4;
+    std::vector<int> newlines;
+    icu::BreakIterator* linebreak_locations = icu::BreakIterator::createLineInstance(icu::Locale::getUS(), status);
+    linebreak_locations->setText(s);
+    int break_index = linebreak_locations->first();
+    while (break_index != icu::BreakIterator::DONE) {
+        break_index = linebreak_locations->next();
+        int preceeding_char = char_locations->preceding(break_index);
+        if (preceeding_char >= ((newlines.size() + 1) * 50) && preceeding_char != icu::BreakIterator::DONE) {
 
-            h[dst_index] = text_color.r;
-            h[dst_index + 1] = text_color.g;
-            h[dst_index + 2] = text_color.b;
-            h[dst_index + 3] = bmp->buffer[src_index];
+            int new_newline = linebreak_locations->preceding(break_index);
+            if (new_newline < text.size() && new_newline != 0) {
+                newlines.emplace_back(new_newline);
+                printf("registered newline at %i\n", new_newline);
+            }
+            break_index = linebreak_locations->next();
         }
     }
+    return newlines;
 }
 
-void render_line(FT_Face face, std::string text, std::vector<u8>& bmp, point<u16> pen, int width, f32 lineheight, color text_color) {
-    pen.y += lineheight * 0.755;
-    for ( size_t n = 0; n < text.length(); n++) {
-        if(text[n] == '\n') {
-            pen.y += lineheight;
-            pen.x = 0;
-            continue;
+
+
+    void copy_bitmap(std::vector<u8>& h, FT_Bitmap* bmp,point<u16> pen, int width, color text_color) {
+
+        for(size_t y = 0; y < bmp->rows; y++ ){
+            for (size_t x = 0; x < bmp->width; x++) {
+                size_t src_index = (x + (y * (bmp->width)));
+                size_t dst_index = ((x + pen.x) + ((y + pen.y) * width)) * 4;
+
+                if (dst_index >= h.size() || src_index >= bmp->rows * bmp->width) continue;
+                h[dst_index] = text_color.r;
+                h[dst_index + 1] = text_color.g;
+                h[dst_index + 2] = text_color.b;
+                h[dst_index + 3] = bmp->buffer[src_index];
+            }
         }
-        auto error = FT_Load_Char( face, text[n], FT_LOAD_RENDER );
+    }
+
+#include <png.h>
+void render_line(FT_Face face, hb_font_t* font, std::string text, std::vector<u8>& bmp,   point<u16> pen, int width, f32 lineheight, color text_color) {
+    hb_buffer_t* buf = hb_buffer_create();
+    hb_buffer_set_direction(buf, HB_DIRECTION_LTR);
+    hb_buffer_set_script(buf, HB_SCRIPT_LATIN);
+    hb_buffer_set_language(buf, hb_language_from_string("en", -1));
+
+    hb_buffer_add_utf8(buf, text.c_str(), -1, 0, -1);
+    hb_shape(hb_ft_font_create_referenced(face), buf, NULL, 0);
+    unsigned int glyph_count;
+    hb_glyph_info_t* glyph_info = hb_buffer_get_glyph_infos(buf, &glyph_count);
+    hb_glyph_position_t* glyph_pos = hb_buffer_get_glyph_positions(buf, &glyph_count);
+
+    auto newlines = get_newlines(text);
+    int newline_index = 0;
+    int next_newline = [&]() {
+        if (newlines.empty()) return 65535;
+        else return int(newlines[newline_index]);
+    }();
+
+    FT_Load_Char( face, '|', FT_LOAD_RENDER);
+     lineheight = (face)->glyph->bitmap.rows * 1.15;
+
+    for (unsigned int i = 0; i < glyph_count; i++) {
+        f32 x_offset  = glyph_pos[i].x_offset / 64.0f;
+        f32 y_offset  = glyph_pos[i].y_offset / 64.0f;
+        f32 x_advance = glyph_pos[i].x_advance / 64.0f;
+        f32 y_advance = glyph_pos[i].y_advance / 64.0f;
+
+        auto error = FT_Load_Char( face, text[i], FT_LOAD_RENDER);
         if ( error ) continue;
 
-        int new_y = std::max(pen.y - (face->glyph->metrics.horiBearingY / 64), 0L);
-        copy_bitmap(bmp, &face->glyph->bitmap, point<u16>(pen.x + face->glyph->bitmap_left, new_y), width, text_color);
-        pen.x += face->glyph->advance.x >> 6;
+        if (i == next_newline) {
+            pen.x = 0;
+            pen.y += lineheight;
+            newline_index++;
+            next_newline = newline_index == newlines.size() ? 65535 : newlines[newline_index];
+        }
+
+        FT_Bitmap ftBitmap = (face)->glyph->bitmap;
+
+        int top =  face->glyph->bitmap_top;
+        float x0 = pen.x + x_offset + face->glyph->bitmap_left;
+        float y0 = floor(pen.y + y_offset + (lineheight - 5 - face->glyph->bitmap_top));
+
+
+        copy_bitmap(bmp, &ftBitmap, point<u16>(x0, y0), width, text_color);
+
+        pen.x += x_advance;
+        pen.y += y_advance;
+    }
+
+}
+std::string s_text::replace_locale_macro(std::string& text) {
+    auto it = data->locale_lookup.find(text);
+    if (it == data->locale_lookup.end()) {
+        return text;
+    } else {
+        return it->second;
     }
 }
-
-
 
 void s_text::run(pool<c_text>& texts, pool<c_display>& displays) {
     size<f32> atlas_size(0, 0);
@@ -500,7 +583,6 @@ void s_text::run(pool<c_text>& texts, pool<c_display>& displays) {
         }
     }
 
-
     if (num_text_entries != last_atlassize) regenerate = true;
     if (num_text_entries == 0) return;
     last_atlassize = num_text_entries;
@@ -514,21 +596,9 @@ void s_text::run(pool<c_text>& texts, pool<c_display>& displays) {
         for (auto entry : text.text_entries) {
             if (entry.text == "") continue;
 
-            std::string string_to_render = [&]() {
-               auto it = data->locale_lookup.find(entry.text);
-               if (it == data->locale_lookup.end()) {
-                   return entry.text;
-               } else {
-                   return it->second;
-               }
-            }();
             auto dim = displays.get(text.parent).sprites(text.sprite_index).get_dimensions(entry.quad_index);
-            u8 num_lines = num_newlines(string_to_render);
-            f32 fontsize = (calc_fontsize(dim.size) / num_lines) / 2;
 
-            FT_Set_Char_Size( data->face, fontsize * 64, 0, 100, 0 );
-
-            render_line(data->face, string_to_render, tex->image_data.data(), pen, atlas_size.x, dim.size.y / num_lines, entry.text_color);
+            render_line(data->face, data->font, replace_locale_macro(entry.text), tex->image_data.data(), pen, atlas_size.x, dim.size.y, entry.text_color);
 
             point<f32> pos(0, pen.y / static_cast<f32>(atlas_size.y));
             size<f32> new_dim(dim.size.x / static_cast<f32>(atlas_size.x), dim.size.y / static_cast<f32>(atlas_size.y));
@@ -539,5 +609,55 @@ void s_text::run(pool<c_text>& texts, pool<c_display>& displays) {
         displays.get(text.parent).sprites(text.sprite_index).tex = tex;
     }
     regenerate = false;
+/*
+    unsigned error = lodepng::encode("test.png", tex->image_data.data(), atlas_size.x, atlas_size.y);
+
+    //if there's an error, display it
+    if(error) std::cout << "encoder error " << error << ": "<< lodepng_error_text(error) << std::endl;*/
+}
+
+
+
+screen_coords s_text::get_text_size(std::string& text) {
+    std::string to_display = replace_locale_macro(text);
+    auto newlines = get_newlines(to_display);
+    int newline_index = 0;
+    int num_newlines = newlines.empty() ? 1 : newlines.size() + 1;
+    int next_newline = [&]() {
+       if (newlines.empty()) return 65535;
+       else return int(newlines[newline_index]);
+    }();
+
+    hb_buffer_t* buf = hb_buffer_create();
+    hb_buffer_set_direction(buf, HB_DIRECTION_LTR);
+    hb_buffer_set_script(buf, HB_SCRIPT_LATIN);
+    hb_buffer_set_language(buf, hb_language_from_string("en", -1));
+
+    hb_buffer_add_utf8(buf, to_display.c_str(), -1, 0, -1);
+    hb_shape(hb_ft_font_create_referenced(data->face), buf, NULL, 0);
+    unsigned int glyph_count;
+    hb_glyph_info_t* glyph_info = hb_buffer_get_glyph_infos(buf, &glyph_count);
+    hb_glyph_position_t* glyph_pos = hb_buffer_get_glyph_positions(buf, &glyph_count);
+
+
+    FT_Load_Char( data->face, '|', FT_LOAD_RENDER);
+    int lineheight = (data->face)->glyph->bitmap.rows * 1.15;
+
+    screen_coords box_size(0, lineheight * (num_newlines));
+    u16 row_size = 0;
+    for (int i = 0; i < glyph_count; i++) {
+        row_size += glyph_pos[i].x_advance / 64.0f;
+        if (i == next_newline) {
+            newline_index++;
+            next_newline = newline_index == newlines.size() ? 65535 : newlines[newline_index];
+            FT_Load_Char( data->face, to_display[i], FT_LOAD_RENDER);
+            row_size += (data->face)->glyph->bitmap.width;
+
+            box_size.x = std::max(box_size.x, row_size);
+            row_size = 0;
+        }
+    }
+    box_size.x = std::max(box_size.x, row_size);
+    return box_size;
 }
 }

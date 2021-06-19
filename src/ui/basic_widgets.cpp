@@ -181,14 +181,14 @@ void add_button(entity e, engine& g, point<f32> pos, size<f32> grid_size, u32 in
     auto& display = g.ecs.get<ecs::c_display>(e);
     button.callbacks[index] = func;
 
-    display.sprites(0).set_pos(pos - sprite_coords(16, 0), grid_size + sprite_coords(32, 0), index);
+    display.sprites(0).set_pos(pos, grid_size, index);
     display.sprites(0).set_tex_region(0, index);
 
-    display.sprites(1).set_pos(pos, grid_size, index);
+    display.sprites(1).set_pos(pos, grid_size , index);
     display.sprites(1).set_tex_region(0, index);
 
     auto& text = g.ecs.get<ecs::c_text>(e);
-    display.sprites(text.sprite_index).set_pos(pos + point<f32>(8, 8), grid_size, index);
+    display.sprites(text.sprite_index).set_pos(pos , grid_size, index);
     text.text_entries.push_back(ecs::c_text::text_entry{index, label});
 }
 

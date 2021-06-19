@@ -77,6 +77,8 @@ public:
 	entity player_id() { return ecs._player_id; }
 	entity map_id() { return ecs._map_id; }
 
+
+	screen_coords get_text_size(std::string text) { return ecs.systems.text.get_text_size(text); }
 	bool in_dungeon = false;
 	world_coords offset = world_coords(0, 0);
     std::bitset<8> command_states;

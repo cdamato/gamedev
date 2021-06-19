@@ -307,7 +307,9 @@ struct s_text : public texture_generator {
 public:
 	s_text();
 	void run(pool<c_text>&, pool<c_display>&);
+    screen_coords get_text_size(std::string&);
 private:
+	std::string replace_locale_macro(std::string&);
 	struct impl;
 	impl* data;
 };
