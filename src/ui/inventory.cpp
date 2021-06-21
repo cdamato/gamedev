@@ -129,9 +129,11 @@ void inventory_init(entity e, engine& g, entity parent, ecs::c_inventory& inv, s
     ecs::c_display& spr = g.ecs.add<ecs::c_display>(e);
 	select.sprite_index = spr.add_sprite(num_grid_elements, render_layers::ui);
 	spr.sprites(select.sprite_index).tex = g.textures().get("highlight");
+    spr.sprites(select.sprite_index).z_index = 7;
 
 	int item_spr = spr.add_sprite(num_grid_elements, render_layers::ui);
 	spr.sprites(item_spr).tex = g.textures().get("items");
+    spr.sprites(item_spr).z_index = 8;
 
     ecs::c_text& text = g.ecs.add<ecs::c_text>(e);
     text.sprite_index = spr.add_sprite(num_grid_elements, render_layers::text);

@@ -45,7 +45,7 @@ void add_checkbox(entity e, engine& g, point<f32> pos, size<f32> grid_size, u32 
     text.text_entries.push_back(ecs::c_text::text_entry{index, label});
 }
 
-void initialize_checkbox_group(entity e, entity parent, engine& g, int num_checkboxes) {
+void initialize_checkbox_group(entity e, entity parent, u8 z_index, engine& g, int num_checkboxes) {
     make_widget(e, g, parent);
     auto& widget = g.ecs.get<ecs::c_widget>(e);
     widget.on_activate = optionmenu_activation;
@@ -121,7 +121,7 @@ void add_slider(entity e, engine& g, point<f32> pos, size<f32> grid_size, u32 in
     text.text_entries.push_back(ecs::c_text::text_entry{index, label});
 }
 
-void initialize_slider_group(entity e, entity parent, engine& g, int num_sliders) {
+void initialize_slider_group(entity e, entity parent, u8 z_index, engine& g, int num_sliders) {
     make_widget(e, g, parent);
     auto& widget = g.ecs.get<ecs::c_widget>(e);
     widget.on_navigate = slider_navigation;
@@ -191,7 +191,7 @@ void add_button(entity e, engine& g, point<f32> pos, size<f32> grid_size, u32 in
     text.text_entries.push_back(ecs::c_text::text_entry{index, label});
 }
 
-void initialize_button_group(entity e, entity parent, engine& g, int num_buttons) {
+void initialize_button_group(entity e, entity parent, u8 z_index, engine& g, int num_buttons) {
     make_widget(e, g, parent);
     auto& widget = g.ecs.get<ecs::c_widget>(e);
     widget.on_navigate = button_navigation;
@@ -202,10 +202,12 @@ void initialize_button_group(entity e, entity parent, engine& g, int num_buttons
     auto& display = g.ecs.add<ecs::c_display>(e);
     display.add_sprite(num_buttons, render_layers::ui);
     display.sprites(0).tex = g.textures().get("menu_background");
+    display.sprites(0).z_index = z_index;
 
     auto& button = g.ecs.add<ecs::c_button>(e);
     button.sprite_index = display.add_sprite(num_buttons, render_layers::ui);
     display.sprites(button.sprite_index).tex = g.textures().get("button");
+    display.sprites(button.sprite_index).z_index = z_index + 2;
 
     auto& text = g.ecs.add<ecs::c_text>(e);
     text.sprite_index = display.add_sprite(num_buttons, render_layers::ui);
@@ -237,7 +239,7 @@ void dropdown_menu_activation(entity e, engine& g, bool release) {
 
 void open_dropdown(entity e, engine& g, entity parent, rect<f32> box, ecs::c_dropdown::dropdown_data dropdown_data) {
     g.ui.focus = e;
-    initialize_button_group(e, parent, g, dropdown_data.entries.size());
+    initialize_button_group(e, parent, g.ecs.get<ecs::c_display>(parent).sprites(0).z_index + 1, g, dropdown_data.entries.size());
     for (int i = 0; i < dropdown_data.entries.size(); i++) {
         box.origin.y += box.size.y;
         add_button(e, g, box.origin, box.size, i, dropdown_menu_activation, dropdown_data.entries[i]);
@@ -292,7 +294,7 @@ void add_dropdown(entity e, engine& g, point<f32> pos, size<f32> grid_size, u32 
     text.text_entries.push_back(ecs::c_text::text_entry{index, options[active]});
 }
 
-void initialize_dropdown_group(entity e, entity parent, engine& g, int num_dropdowns) {
+void initialize_dropdown_group(entity e, entity parent, u8 z_index, engine& g, int num_dropdowns) {
     make_widget(e, g, parent);
     auto& widget = g.ecs.get<ecs::c_widget>(e);
     widget.on_navigate = dropdown_navigation;
@@ -304,10 +306,12 @@ void initialize_dropdown_group(entity e, entity parent, engine& g, int num_dropd
     display.add_sprite(num_dropdowns + 1, render_layers::ui);
     display.sprites(0).tex = g.textures().get("menu_background");
     display.sprites(0).set_pos(sprite_coords(0, 0), sprite_coords(500, 500), num_dropdowns);
+    display.sprites(0).z_index = z_index;
 
     auto& dropdown = g.ecs.add<ecs::c_dropdown>(e);
     dropdown.sprite_index = display.add_sprite(num_dropdowns, render_layers::ui);
     display.sprites(dropdown.sprite_index).tex = g.textures().get("button");
+    display.sprites(dropdown.sprite_index).z_index = z_index + 1;
 
     auto& text = g.ecs.add<ecs::c_text>(e);
     text.sprite_index = display.add_sprite(num_dropdowns, render_layers::ui);

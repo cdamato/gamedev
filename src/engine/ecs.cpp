@@ -312,7 +312,6 @@ void s_health::update_healthbars(pool<c_health>& healths, pool<c_display>& sprit
     size_t index = 0;
     size<u16> tex_size = size<u16>(8, 4 * new_atlassize);
     tex->image_data = image(std::vector<u8>(tex_size.x * tex_size.y * 4), tex_size);
-    tex->z_index = 2;
     tex->regions = size<u16>(1, new_atlassize);
 
     size<f32> slice_size(1, 1.0f / new_atlassize);
@@ -588,7 +587,6 @@ void s_text::run(pool<c_text>& texts, pool<c_display>& displays) {
     last_atlassize = num_text_entries;
     if (regenerate == false) return;
 
-    tex->z_index = 8;
     tex->image_data = image(std::vector<u8>(atlas_size.x * atlas_size.y * 4, 0), atlas_size.to<u16>());
     point<u16> pen(0, 0);
 
@@ -607,6 +605,7 @@ void s_text::run(pool<c_text>& texts, pool<c_display>& displays) {
             pen.y += dim.size.y ;
         }
         displays.get(text.parent).sprites(text.sprite_index).tex = tex;
+        displays.get(text.parent).sprites(text.sprite_index).z_index = 9;
     }
     regenerate = false;
 /*

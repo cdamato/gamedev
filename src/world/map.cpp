@@ -106,6 +106,7 @@ void set_map(engine& game, world_coords dimensions, std::vector<u8> tiles) {
 
 	spr.add_sprite(tiles.size(), render_layers::sprites);
 	spr.sprites(0).tex = game.textures().get("tilemap");
+	spr.sprites(0).z_index = 0;
 
 	size_t index = 0;
 	u8 tile_type = 0;

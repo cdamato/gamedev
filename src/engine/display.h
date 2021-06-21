@@ -46,7 +46,8 @@ protected:
     virtual void render_batch(texture*, render_layers, texture_manager&) = 0;
 
     std::vector<sprite_data> batching_pool;
-    vertex* batching_buffer = nullptr;
+    vertex* vertex_buffer = nullptr;
+    u8* zindex_buffer = nullptr;
     size_t quads_batched = 0;
     bool sprites_dirty = false;
 };

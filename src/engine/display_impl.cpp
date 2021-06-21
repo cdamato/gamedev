@@ -12,7 +12,8 @@ namespace display {
 
 // Some renderer constants
 constexpr unsigned quads_in_buffer = 1024;
-constexpr unsigned buffer_size = quads_in_buffer * vertices_per_quad * sizeof(vertex);
+constexpr unsigned vertex_buffer_size = quads_in_buffer * vertices_per_quad * sizeof(vertex);
+constexpr unsigned zindex_buffer_size = quads_in_buffer * vertices_per_quad * sizeof(u8);
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //     WINDOW, RENDERER AND TEXTURE MANAGER CLASS DECLARATIONS, FOR BOTH OPENGL AND SOFTWARE RENDERERS     //
@@ -56,6 +57,15 @@ private:
     void render_batch(texture*, render_layers, texture_manager&);
     void update_texture_data(texture*);
 
+    class vbo {
+    public:
+        vbo();
+        ~vbo();
+        void bind();
+    private:
+        u32 _id;
+    };
+
     class shader {
     public:
         shader(u32 vert, u32 frag);
@@ -70,11 +80,14 @@ private:
         u32 _ID = 65535;
         std::unordered_map<std::string, int> attributes = std::unordered_map<std::string, int>();
     };
+
     static shader gen_shader(std::string, std::string);
     renderer_gl::shader& get_shader(render_layers layer);
     renderer_gl::shader text_shader = gen_shader("shaders/ui.vert", "shaders/shader.frag");
     renderer_gl::shader ui_shader = gen_shader("shaders/ui.vert", "shaders/shader.frag");
     renderer_gl::shader map_shader = gen_shader("shaders/world.vert", "shaders/shader.frag");
+    renderer_gl::vbo vertex_vbo;
+    renderer_gl::vbo zindex_vbo;
 
     size<f32> viewport;
     std::vector<f32> camera = { 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1 };
@@ -248,15 +261,18 @@ void renderer::render_layer(texture_manager& tm) {
         int quads_remaining = sprite.vertices().size() / vertices_per_quad;
         while (quads_remaining > 0) {
             const vertex* src_ptr = sprite.vertices().data() +  ((sprite.vertices().size() / vertices_per_quad) - quads_remaining)  * vertices_per_quad;
-            vertex* dest_ptr = batching_buffer + quads_batched * vertices_per_quad;
+            vertex* vertex_buffer_ptr = vertex_buffer + quads_batched * vertices_per_quad;
+            u8* zindex_buffer_ptr = zindex_buffer + quads_batched * vertices_per_quad;
 
             int quads_to_batch = std::min(quads_in_buffer - quads_batched, size_t(quads_remaining));
-            int bytes_to_batch = quads_to_batch * vertices_per_quad * sizeof(vertex);
+            int vertex_bytes_to_batch = quads_to_batch * vertices_per_quad * sizeof(vertex);
+            int zindex_bytes_to_batch = quads_to_batch * vertices_per_quad ;
 
             quads_remaining -= quads_to_batch;
             quads_batched += quads_to_batch;
 
-            memcpy(dest_ptr, src_ptr, bytes_to_batch);
+            memcpy(vertex_buffer_ptr, src_ptr, vertex_bytes_to_batch);
+            memset(zindex_buffer_ptr, sprite.z_index, zindex_bytes_to_batch);
 
             if (quads_batched == quads_in_buffer) {
                 current_tex = sprite.tex;
@@ -298,8 +314,6 @@ void texture_manager::load_textures() {
         texture* tex = add(it->first);
         load_pixel_data(tex, "textures/" + list->get<std::string>(0));
         tex->regions = size<u16>(list->get<int>(1), list->get<int>(2));
-        tex->z_index = list->get<int>(3);
-        tex->scale_factor = list->get<int>(4);
         update(tex);
     }
 }
@@ -322,6 +336,19 @@ void gl_backend::set_vsync(bool state) { SDL_GL_SetSwapInterval(state ? 1 : 0); 
 ///////////////////////////////////
 //*     OpenGL Renderer code    *//
 ///////////////////////////////////
+
+renderer_gl::vbo::vbo() {
+    glGenBuffers(1, &_id);
+    bind();
+}
+
+renderer_gl::vbo::~vbo() {
+    glDeleteBuffers(1, &_id);
+}
+
+void renderer_gl::vbo::bind() {
+    glBindBuffer(GL_ARRAY_BUFFER, _id);
+}
 
 renderer_gl::shader::shader(u32 vert, u32 frag) {
     _ID = glCreateProgram();
@@ -399,13 +426,14 @@ renderer_gl::shader renderer_gl::gen_shader(std::string vert_filename, std::stri
 }
 
 
-
-vertex* map_buffer() noexcept {
+template <typename T>
+T* map_buffer(size_t buffer_size) noexcept {
     glBufferData(GL_ARRAY_BUFFER, buffer_size, nullptr, GL_STREAM_DRAW);
-    return static_cast<vertex*>(glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY));
+    return static_cast<T*>(glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY));
 }
 
-vertex* unmap_buffer() noexcept {
+template <typename T>
+T* unmap_buffer() noexcept {
     glUnmapBuffer(GL_ARRAY_BUFFER);
     return nullptr;
 }
@@ -416,14 +444,20 @@ void renderer_gl::render_batch(texture* current_tex, render_layers layer, textur
     }
     glBindTexture(GL_TEXTURE_2D, current_tex->id);
     renderer_gl::shader& shader = get_shader(layer);
-    shader.update_uniform("z_index", current_tex->z_index);
-
-    batching_buffer = unmap_buffer();
+    shader.bind();
+    zindex_vbo.bind();
+    zindex_buffer = unmap_buffer<u8>();
+    vertex_vbo.bind();
+    vertex_buffer = unmap_buffer<vertex>();
     glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(quads_batched * 6),
                    GL_UNSIGNED_SHORT, (void*) 0);
-    batching_buffer = map_buffer();
+    vertex_vbo.bind();
+    vertex_buffer = map_buffer<vertex>(vertex_buffer_size);
+    zindex_vbo.bind();
+    zindex_buffer = map_buffer<u8>(zindex_buffer_size);
     quads_batched = 0;
 }
+
 renderer_gl::shader& renderer_gl::get_shader(render_layers layer) {
     if (layer == render_layers::sprites)
         return map_shader;
@@ -477,24 +511,26 @@ renderer_gl::renderer_gl() {
 
     get_shader(render_layers::text).register_uniform("color");
     get_shader(render_layers::text).register_uniform("viewport");
-    get_shader(render_layers::text).register_uniform("z_index");
 
     get_shader(render_layers::ui).register_uniform("viewport");
-    get_shader(render_layers::ui).register_uniform("z_index");
 
     get_shader(render_layers::sprites).register_uniform("viewport");
-    get_shader(render_layers::sprites).register_uniform("z_index");
     get_shader(render_layers::sprites).register_uniform("viewMatrix");
 
-    unsigned int ID;
-    glGenBuffers(1, &ID);
-    glBindBuffer(GL_ARRAY_BUFFER, ID);
+
+    zindex_vbo.bind();
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 1, GL_UNSIGNED_BYTE, GL_FALSE, 0, (void*) 0);
+
+    vertex_vbo.bind();
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), (void*) 0);
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), (void*) (sizeof(sprite_coords)));
 
-    batching_buffer = map_buffer();
+
+    vertex_buffer = map_buffer<vertex>(vertex_buffer_size);
+    zindex_buffer = map_buffer<u8>(zindex_buffer_size);
 }
 
 void renderer_gl::set_viewport(screen_coords screen_size) {
@@ -503,7 +539,6 @@ void renderer_gl::set_viewport(screen_coords screen_size) {
     get_shader(render_layers::text).update_uniform("viewport", 2.0f / screen_size.x, 2.0f / screen_size.y);
     get_shader(render_layers::ui).update_uniform("viewport", 2.0f / screen_size.x, 2.0f / screen_size.y);
     get_shader(render_layers::sprites).update_uniform("viewport", viewport.x, viewport.y);
-    get_shader(render_layers::sprites).update_uniform("z_index", 0.0f);
     get_shader(render_layers::sprites).update_uniform("viewMatrix", camera.data());
 }
 
@@ -525,9 +560,8 @@ void renderer_gl::clear_screen()
 ///////////////////////////////////////////
 
 void texture_manager_gl::update(texture* tex) {
-    unsigned data_type = tex->is_greyscale ? 0x1903 : GL_RGBA;
     glBindTexture(GL_TEXTURE_2D, tex->id);
-    glTexImage2D(GL_TEXTURE_2D, 0, data_type, tex->image_data.size().x, tex->image_data.size().y, 0, data_type, GL_UNSIGNED_BYTE, tex->image_data.data().data());
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tex->image_data.size().x, tex->image_data.size().y, 0, GL_RGBA, GL_UNSIGNED_BYTE, tex->image_data.data().data());
     glGenerateMipmap(GL_TEXTURE_2D);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -614,7 +648,7 @@ image rescale_texture(image source, size<u16> new_size) {
 }
 
 void renderer_software::clear_screen() { memset(fb.data(), 0, fb.size().x * fb.size().y * 4); }
-renderer_software::renderer_software() { batching_buffer = new vertex[quads_in_buffer * vertices_per_quad]; }
+renderer_software::renderer_software() { vertex_buffer = new vertex[quads_in_buffer * vertices_per_quad]; }
 void renderer_software::set_viewport(screen_coords screen_size) { }
 void renderer_software::set_camera(vec2d<f32> camera_in) { camera = camera_in; }
 
@@ -666,8 +700,8 @@ void renderer_software::render_batch(texture* current_tex, render_layers layer, 
     auto& textures = dynamic_cast<texture_manager_software&>(tm_base);
     rect<f32> frame(point<f32>(0, 0), fb.size().to<f32>());
     for (size_t i = 0; i < quads_batched * 4; i+= 4) {
-        const auto tl_vert = transpose_vertex(matrix, batching_buffer[i]);
-        const auto br_vert = transpose_vertex(matrix, batching_buffer[i + 2]);
+        const auto tl_vert = transpose_vertex(matrix, vertex_buffer[i]);
+        const auto br_vert = transpose_vertex(matrix, vertex_buffer[i + 2]);
 
         rect<f32> sprite_rect(tl_vert.pos, br_vert.pos - tl_vert.pos);
         if (!AABB_collision(frame, sprite_rect)) continue;

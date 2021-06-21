@@ -46,11 +46,8 @@ struct vertex {
 
 struct texture {
     u32 id;
-    sprite_coord_t z_index;
     image image_data;
     size<u16> regions;
-    int scale_factor;
-    bool is_greyscale = false;
 };
 
 
@@ -81,6 +78,7 @@ static constexpr unsigned vertices_per_quad = 4;
 
 struct sprite_data {
     texture* tex = nullptr;
+    u8 z_index = 1;
     render_layers layer;
 
     sprite_data(size_t num_quads, render_layers layer_in) {
@@ -99,9 +97,9 @@ struct sprite_data {
     void move_to(sprite_coords);
 
     inline bool operator < (const sprite_data& rhs ) const {
-        if (tex->z_index == rhs.tex->z_index)
+        if (z_index == rhs.z_index)
             return int(layer) < int(rhs.layer);
-        return tex->z_index < rhs.tex->z_index;
+        return z_index < rhs.z_index;
     }
 private:
     std::vector<vertex> _vertices {};
