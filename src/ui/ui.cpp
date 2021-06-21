@@ -53,20 +53,20 @@ bool send_navevent(entity e, engine& g, int new_index) {
     auto& select = g.ecs.get<ecs::c_selection>(e);
 
     if (g.ecs.exists<ecs::c_checkbox>(e)) {
-        checkbox_navigation(e, g, select.highlight_index(), new_index);
-        selectiongrid_navigation(e, g, select.highlight_index(), new_index);
+        checkbox_navigation(e, g, new_index);
+        selectiongrid_navigation(e, g, new_index);
     } else if (g.ecs.exists<ecs::c_slider>(e)) {
         if (g.ui.cursor == e) {
-            slider_navigation(e, g, 0, new_index);
+            slider_navigation(e, g, new_index);
         } else {
-            selectiongrid_navigation(e, g, select.highlight_index(), new_index);
+            selectiongrid_navigation(e, g, new_index);
         }
     } else if (g.ecs.exists<ecs::c_button>(e)) {
-        button_navigation(e, g, select.highlight_index(), new_index);
+        button_navigation(e, g, new_index);
     } else if (g.ecs.exists<ecs::c_dropdown>(e)) {
-        dropdown_navigation(e, g, select.highlight_index(), new_index);
+        dropdown_navigation(e, g, new_index);
     } else {
-        w.on_navigate(e, g, select.highlight_index(), new_index);
+        w.on_navigate(e, g, new_index);
     }
     return true;
 }

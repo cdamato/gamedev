@@ -138,7 +138,7 @@ engine::engine() {
         inv.data.add(i, ecs::c_inventory::item{h, 0});
     }
 
-    renderer().set_viewport(window().get_drawable_resolution());
+    renderer().set_viewport(window().resolution());
     create_entity([&](entity e, engine& g){
         g.ecs.add<ecs::c_widget>(e);
         g.ui.root = e;

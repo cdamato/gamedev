@@ -11,7 +11,7 @@ void inventory_hover(entity e, engine& g) {
 }
 
 
-void inventory_navigation(entity e, engine& g, u32 old_target, u32 new_target) {
+void inventory_navigation(entity e, engine& g, u32 new_target) {
     ecs::c_selection& select = g.ecs.get<ecs::c_selection>(e);
     if (select.active.x != 65535 && select.active.y != 65535) {
         sprite_coords new_position;
@@ -25,7 +25,7 @@ void inventory_navigation(entity e, engine& g, u32 old_target, u32 new_target) {
         spr.sprites(1).set_pos(new_position, item_size, select.active_index());
         spr.sprites(2).set_pos(new_position, item_size, select.active_index());
     }
-    selectiongrid_navigation(e, g, old_target, new_target);
+    selectiongrid_navigation(e, g, new_target);
 }
 
 // Given a gridsquare, this function returns the top left sprite coordinate corresponding to it
@@ -106,7 +106,7 @@ void inventory_activation(entity e, engine& g, bool release) {
         entity parent = g.ecs.get<ecs::c_widget>(e).parent;
         transfer_item(parent, g, inv);
 	}
-    inventory_navigation(e, g, select.active_index(), select.active_index());
+    inventory_navigation(e, g, select.active_index());
 }
 
 

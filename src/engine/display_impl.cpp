@@ -19,7 +19,8 @@ constexpr unsigned buffer_size = quads_in_buffer * vertices_per_quad * sizeof(ve
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 struct sdl_window : public window_impl {
-    screen_coords get_drawable_resolution() { return resolution; }
+    void set_resolution(screen_coords coords) { if (!_fullscreen) { SDL_SetWindowSize(window, coords.x, coords.y); } }
+    void set_fullscreen(bool fullscreen_state) { SDL_SetWindowFullscreen(window, fullscreen_state ? SDL_WINDOW_FULLSCREEN_DESKTOP  : 0); }
     bool poll_events();
 protected:
     sdl_window(screen_coords resolution, int flags);
@@ -37,7 +38,6 @@ struct gl_backend : public sdl_window {
     gl_backend(screen_coords);
     ~gl_backend();
     void swap_buffers(renderer& r);
-    void set_resolution(screen_coords coords);
     void set_vsync(bool);
 private:
     SDL_GLContext gl_context;
@@ -174,9 +174,12 @@ void display_manager::initialize(display_types mode, screen_coords resolution) {
 
 sdl_window::~sdl_window() { SDL_DestroyWindow(window); }
 sdl_window::sdl_window(screen_coords resolution_in, int flags) {
-    u32 window_flags = SDL_WINDOW_SHOWN | flags;
+    u32 window_flags = SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE | flags;
     window = SDL_CreateWindow("SDL2 OpenGL Example", 0, 0, resolution_in.x, resolution_in.y, window_flags);
-    resolution = resolution_in;
+
+    point<int> window_size;
+    SDL_GL_GetDrawableSize(window, &window_size.x, &window_size.y);
+    _resolution = window_size.to<u16>();
 }
 
 bool sdl_window::poll_events() {
@@ -201,6 +204,15 @@ bool sdl_window::poll_events() {
             case SDL_MOUSEMOTION: {
                 event_cursor e(screen_coords(event.motion.x, event.motion.y));
                 event_callback(e);
+                break;
+            }
+            case SDL_WINDOWEVENT: {
+                switch (event.window.event) {
+                    case SDL_WINDOWEVENT_RESIZED:
+                    case SDL_WINDOWEVENT_SIZE_CHANGED:
+                        resize_callback(screen_coords(event.window.data1, event.window.data2));
+                        break;
+                }
                 break;
             }
         }
@@ -539,14 +551,14 @@ u32 texture_manager_gl::get_new_id() {
 //     SOFTWARE WINDOW CODE    //
 /////////////////////////////////
 
-void software_backend::attach_shm(framebuffer& fb) { fb = framebuffer(reinterpret_cast<u8*>(buffer), get_drawable_resolution()); }
+void software_backend::attach_shm(framebuffer& fb) { fb = framebuffer(reinterpret_cast<u8*>(buffer), resolution()); }
 void software_backend::swap_buffers(renderer& r) {
     auto& frame = reinterpret_cast<renderer_software&>(r).get_framebuffer();
     if (reinterpret_cast<u32*>(frame.data()) != buffer) {
         attach_shm(frame);
         return;
     }
-    SDL_UpdateTexture(fb_texture, NULL, buffer, resolution.x * sizeof (u32));
+    SDL_UpdateTexture(fb_texture, NULL, buffer, resolution().x * sizeof (u32));
     SDL_RenderClear(renderer_handle);
     SDL_RenderCopy(renderer_handle, fb_texture , NULL, NULL);
     SDL_RenderPresent(renderer_handle);
@@ -557,13 +569,13 @@ void software_backend::set_vsync(bool state) {
     SDL_DestroyRenderer(renderer_handle);
     int flags = SDL_RENDERER_SOFTWARE | state ? SDL_RENDERER_PRESENTVSYNC : 0;
     renderer_handle =  SDL_CreateRenderer(window, -1, flags);
-    fb_texture = SDL_CreateTexture(renderer_handle, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, resolution.x, resolution.y);
+    fb_texture = SDL_CreateTexture(renderer_handle, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, resolution().x, resolution().y);
 }
 
 software_backend::software_backend(screen_coords resolution_in) : sdl_window(resolution_in, 0) {
     renderer_handle =  SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
-    fb_texture = SDL_CreateTexture(renderer_handle, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, resolution.x, resolution.y);
-    buffer = new u32[resolution.x * resolution.y];
+    fb_texture = SDL_CreateTexture(renderer_handle, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, resolution().x, resolution().y);
+    buffer = new u32[resolution().x * resolution().y];
 }
 
 software_backend::~software_backend() {

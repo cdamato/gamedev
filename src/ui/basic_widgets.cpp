@@ -20,15 +20,14 @@ void checkbox_set_highlight(entity e, engine& g, int index, bool enter) {
     g.ecs.get<ecs::c_display>(e).sprites(checkbox.sprite_index).set_tex_region(activated, index);
 }
 
-void checkbox_navigation(entity e, engine& g, u32 old_index, u32 new_index) {
+void checkbox_navigation(entity e, engine& g, u32 new_index) {
     auto& select = g.ecs.get<ecs::c_selection>(e);
-    if (old_index < select.num_elements()) {
-        checkbox_set_highlight(e, g, old_index, false);
+    if (select.highlight_index() < select.num_elements()) {
+        checkbox_set_highlight(e, g, select.highlight_index(), false);
     }
     if (new_index < select.num_elements()) {
         checkbox_set_highlight(e, g, new_index, true);
     }
-
 }
 
 void add_checkbox(entity e, engine& g, point<f32> pos, size<f32> grid_size, u32 index, bool state, std::string label) {
@@ -46,8 +45,8 @@ void add_checkbox(entity e, engine& g, point<f32> pos, size<f32> grid_size, u32 
     text.text_entries.push_back(ecs::c_text::text_entry{index, label});
 }
 
-void initialize_checkbox_group(entity e, engine& g, int num_checkboxes) {
-    make_widget(e, g, g.ui.root);
+void initialize_checkbox_group(entity e, entity parent, engine& g, int num_checkboxes) {
+    make_widget(e, g, parent);
     auto& widget = g.ecs.get<ecs::c_widget>(e);
     widget.on_activate = optionmenu_activation;
     widget.on_navigate = checkbox_navigation;
@@ -93,7 +92,7 @@ int value_at_position(entity e, engine& g, int position, u32 index) {
     return new_value;
 }
 
-void slider_navigation(entity e, engine& g, u32 old_position, u32 new_position) {
+void slider_navigation(entity e, engine& g, u32 new_position) {
     auto& select = g.ecs.get<ecs::c_selection>(e);
     if (select.active_index() < select.num_elements()) {
         slider_set_value(e, g, value_at_position(e, g, new_position, 0), select.highlight_index());
@@ -122,8 +121,8 @@ void add_slider(entity e, engine& g, point<f32> pos, size<f32> grid_size, u32 in
     text.text_entries.push_back(ecs::c_text::text_entry{index, label});
 }
 
-void initialize_slider_group(entity e, engine& g, int num_sliders) {
-    make_widget(e, g, g.ui.root);
+void initialize_slider_group(entity e, entity parent, engine& g, int num_sliders) {
+    make_widget(e, g, parent);
     auto& widget = g.ecs.get<ecs::c_widget>(e);
     widget.on_navigate = slider_navigation;
     g.ecs.add<ecs::c_selection>(e).grid_size = size<u16>(1, num_sliders);
@@ -160,12 +159,12 @@ void button_activation(entity e, engine& g, bool release) {
     }
 }
 
-void button_navigation(entity e, engine& g, u32 old_index, u32 new_index) {
+void button_navigation(entity e, engine& g,u32 new_index) {
     auto& select = g.ecs.get<ecs::c_selection>(e);
     auto& buttons = g.ecs.get<ecs::c_button>(e);
-    if (old_index < select.num_elements()) {
-        if (old_index != select.active_index()) {
-            g.ecs.get<ecs::c_display>(e).sprites(buttons.sprite_index).set_tex_region(0, old_index);
+    if (select.highlight_index() < select.num_elements()) {
+        if (select.highlight_index() != select.active_index()) {
+            g.ecs.get<ecs::c_display>(e).sprites(buttons.sprite_index).set_tex_region(0, select.highlight_index());
         }
     }
     if (new_index < select.num_elements()) {
@@ -261,12 +260,12 @@ void dropdown_activation(entity e, engine& g, bool release) {
     }
 }
 
-void dropdown_navigation(entity e, engine& g, u32 old_index, u32 new_index) {
+void dropdown_navigation(entity e, engine& g, u32 new_index) {
     auto& select = g.ecs.get<ecs::c_selection>(e);
     auto& dropdown = g.ecs.get<ecs::c_dropdown>(e);
-    if (old_index < select.num_elements()) {
-        if (old_index != select.active_index()) {
-            g.ecs.get<ecs::c_display>(e).sprites(dropdown.sprite_index).set_tex_region(0, old_index);
+    if (select.highlight_index() < select.num_elements()) {
+        if (select.highlight_index() != select.active_index()) {
+            g.ecs.get<ecs::c_display>(e).sprites(dropdown.sprite_index).set_tex_region(0, select.highlight_index());
         }
     }
     if (new_index < select.num_elements()) {
@@ -293,8 +292,8 @@ void add_dropdown(entity e, engine& g, point<f32> pos, size<f32> grid_size, u32 
     text.text_entries.push_back(ecs::c_text::text_entry{index, options[active]});
 }
 
-void initialize_dropdown_group(entity e, engine& g, int num_dropdowns) {
-    make_widget(e, g, g.ui.root);
+void initialize_dropdown_group(entity e, entity parent, engine& g, int num_dropdowns) {
+    make_widget(e, g, parent);
     auto& widget = g.ecs.get<ecs::c_widget>(e);
     widget.on_navigate = dropdown_navigation;
     widget.on_activate = dropdown_activation;
@@ -322,7 +321,7 @@ void selectiongrid_set_highlight(entity e, engine& g, u32 index, bool enter) {
     g.ecs.get<ecs::c_display>(e).sprites(0).set_tex_region(enter ? 1 : 0, index);
 }
 
-void selectiongrid_navigation(entity e, engine& g, u32 old_index, u32 new_index) {
+void selectiongrid_navigation(entity e, engine& g, u32 new_index) {
     auto& select = g.ecs.get<ecs::c_selection>(e);
     if (select.highlight_index() < select.num_elements()) {
          selectiongrid_set_highlight(e, g, select.highlight_index(), false);

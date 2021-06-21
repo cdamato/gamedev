@@ -177,7 +177,7 @@ struct c_widget : public component {
 
 	using activation_action = void (*)(entity, engine&, bool);
 	activation_action on_activate = nullptr;
-	using navigation_action = void (*)(entity, engine&, u32, u32);
+	using navigation_action = void (*)(entity, engine&, u32);
 	navigation_action on_navigate = nullptr;
     using hover_action = void (*)(entity, engine&);
     hover_action on_hover = nullptr;

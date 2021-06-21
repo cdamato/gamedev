@@ -40,6 +40,8 @@ Coverage:
 	$(MAKE) -f make_impl BUILD_DIR=Build/Unit_Tests TARGET_EXE=test_suite SOURCE_DIRECTORIES="$(TEST_DIRS) $(SOURCE_DIRS)" LIBRARY_DIR=/usr/local/lib \
 	LIBS="$(LINUX_LIBS) gcov" CXXFLAGS_IN="--coverage"
 
+all: Windows Debug AMD64 ARM64
+
 clean: 
 	rm -rf Build/
 	rm -rf game/rpggame
@@ -47,4 +49,4 @@ clean:
 	rm -rf coverage_docs
 	rm -rf test_suite
 
-.PHONY: Windows Debug AMD64 ARM64 Coverage clean
+.PHONY: Windows Debug AMD64 ARM64 Coverage clean all

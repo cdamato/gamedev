@@ -56,19 +56,25 @@ private:
     [[no_unique_address]] no_copy disable_copy;
     [[no_unique_address]] no_move disable_move;
 public:
+    virtual ~window_impl() {}
     virtual bool poll_events() = 0;
     virtual void swap_buffers(renderer&) = 0;
-    virtual screen_coords get_drawable_resolution() = 0;
-    virtual ~window_impl() {}
-    bool renderer_busy() { return _renderer_busy; }
     virtual void set_vsync(bool) = 0;
+
+    virtual void set_resolution(screen_coords) = 0;
+    virtual void set_fullscreen(bool) = 0;
+
+    screen_coords resolution() { return _resolution; }
+    bool fullscreen() { return _fullscreen; }
+    bool renderer_busy() { return _renderer_busy; }
 
     std::function<void(input_event&)> event_callback;
     std::function<void(screen_coords)> resize_callback;
-    screen_coords resolution;
 protected:
     bool update_resolution = true; // Update resolution internally on the next tick
     bool _renderer_busy = false;
+    bool _fullscreen = false;
+    screen_coords _resolution;
 };
 
 class display_manager : no_copy, no_move {
