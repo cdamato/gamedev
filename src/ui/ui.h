@@ -4,7 +4,8 @@
 #include <engine/engine.h>
 
 
-
+void resize_widget( entity e, engine& g,f32 scale_factor, rect<f32> old_parent_rect, rect<f32> new_parent_rect);
+void resize_ui(engine& g, f32 scale_factor);
 
 void checkbox_navigation(entity e, engine& g, u32 new_index);
 void add_checkbox(entity e, engine& g, point<f32> pos, size<f32> grid_size, u32 index, bool state, std::string label);

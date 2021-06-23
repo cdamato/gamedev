@@ -1,6 +1,41 @@
 #include <engine/engine.h>
 #include "ui.h"
 
+rect<f32> resize_quad(rect<f32> r, f32 scale_factor, rect<f32> old_parent_rect, rect<f32> new_parent_rect) {
+    sprite_coords new_size = r.size * scale_factor;
+    sprite_coords position_ratio = (r.center() - old_parent_rect.origin) / old_parent_rect.size;
+    sprite_coords new_origin = (new_parent_rect.size * position_ratio) - (new_size / 2) + new_parent_rect.origin;
+    return rect<f32>(new_origin, new_size);
+}
+void resize_widget(entity e, engine& g, f32 scale_factor, rect<f32> old_parent_rect, rect<f32> new_parent_rect) {
+    auto& display = g.ecs.get<ecs::c_display>(e);
+    auto& widget = g.ecs.get<ecs::c_widget>(e);
+
+    // calculate a rectangle grid to fit the new bounds of this widget
+    rect<f32> old_rect = display.sprites(0).get_dimensions();
+    sprite_coords new_size = old_rect.size * scale_factor;
+    sprite_coords pos_ratio = old_rect.origin / (old_parent_rect.size - old_rect.size);
+    sprite_coords new_origin = (new_parent_rect.size - new_size) * pos_ratio;
+    rect<f32> new_rect(new_origin, new_size);
+    // iterate through every quad, resizing and repositioning it using ratios relative to new widget rectangle
+    for (auto& sprite : display) {
+        for (int i = 0; i < sprite.num_quads(); i++) {
+            rect<f32> r = resize_quad(sprite.get_dimensions(i), scale_factor, old_rect, new_rect);
+            sprite.set_pos(r.origin, r.size, i);
+        }
+    }
+    for (auto& child : widget.children) {
+        resize_widget(child, g, scale_factor, old_rect, new_rect);
+    }
+}
+
+void resize_ui(engine& g, f32 scale_factor) {
+    auto& widget = g.ecs.get<ecs::c_widget>(g.ui.root);
+    rect<f32> thing(sprite_coords(0,0), sprite_coords(1920, 1080));
+    for (auto& child : widget.children) {
+        resize_widget(child, g, scale_factor, thing, thing);
+    }
+}
 
 int cursorpos_to_navindex(entity e, engine& g, sprite_coords ev_pos) {
     auto& select = g.ecs.get<ecs::c_selection>(e);

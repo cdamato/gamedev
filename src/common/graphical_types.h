@@ -87,6 +87,7 @@ struct sprite_data {
     }
 
     const std::vector<vertex>& vertices() const { return _vertices; };
+    int num_quads() { return _vertices.size() / 4; };
     rect<f32> get_dimensions(u8 quad_index = 255);
 
     void set_pos(sprite_coords, sprite_coords, size_t);

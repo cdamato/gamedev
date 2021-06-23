@@ -143,7 +143,9 @@ int main(int, char **) {
             printf("%f ms/frame\n", 1000.0f / double(numframes));
             numframes = 0;
             fpscounter.start();
+            //resize_ui(w, 1.25);
         }
+
 
         while (lag >= timer::microseconds(ms_per_frame)) {
             w.run_tick();

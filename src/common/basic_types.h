@@ -28,12 +28,12 @@ using f32 = float;
 	}
 
 #define VEC2D_SCALAR_ARITH_MACRO(op) \
-	constexpr vec2d<T>& operator op##= (const int rhs) {\
+	constexpr vec2d<T>& operator op##= (const T rhs) {\
 		x op##= rhs;\
 		y op##= rhs;\
 		return *this;\
 	}\
-	constexpr friend vec2d<T> operator op (vec2d<T> lhs, const int rhs) {\
+	constexpr friend vec2d<T> operator op (vec2d<T> lhs, const T rhs) {\
 		lhs op##= rhs;\
 		return lhs;\
 	}

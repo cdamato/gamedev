@@ -154,7 +154,7 @@ void inventory_init(entity e, engine& g, entity parent, ecs::c_inventory& inv, s
 			index++;
 		}
 		pos.y += element_size.y;
-		pos.x = 100;
+		pos.x = origin.x;
 	}
 }
 
