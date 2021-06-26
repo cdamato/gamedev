@@ -173,6 +173,7 @@ struct c_enemy : public component {	};
 
 struct c_widget : public component {
 	entity parent = 65535;
+	bool accepts_textinput = false;
 	std::vector <entity> children;
 
 	using activation_action = void (*)(entity, engine&, bool);
@@ -186,7 +187,7 @@ struct c_widget : public component {
 struct c_text : public component {
 	struct text_entry {
 		u8 quad_index = 0;
-		std::string text;
+		std::string text = "";
 		color text_color = color(0, 0, 0, 0);
 		bool regen = false;
 	};
@@ -307,8 +308,16 @@ struct s_text : public texture_generator {
 public:
 	s_text();
 	void run(pool<c_text>&, pool<c_display>&);
+
     screen_coords get_text_size(std::string&);
+    size_t character_at_position(std::string text, screen_coords pos);
+    screen_coords position_of_character(std::string text, size_t pos);
+    int num_characters(std::string text);
+    int bytes_of_character(std::string text, int char_index);
+    int character_byte_index(std::string text, int char_index);
+	std::vector<int> get_numlines(std::string& text);
 private:
+	void render_line(std::string text, point<u16> pen, color text_color);
 	std::string replace_locale_macro(std::string&);
 	struct impl;
 	impl* data;
@@ -364,10 +373,11 @@ public:
 
 	template<typename T>
 	constexpr pool<T>& pool() { return components.get_pool(type_tag<T>()); }
+
+    system_manager systems;
 private:
 	entity_manager entities;
 	component_manager components;
-	system_manager systems;
 	entity _player_id = 65535;
 	entity _map_id = 65535;
 	void run_ecs(int framerate_multiplier);

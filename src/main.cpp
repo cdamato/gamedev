@@ -111,7 +111,7 @@ void haha(entity e, engine&, bool release) {
 void init_main_menu(engine& eng) {
     eng.create_entity([&](entity e, engine& g) {
         initialize_button_group(e, g.ui.root, 5, g,  2);
-        add_button(e, g, sprite_coords(100, 400), eng.get_text_size("MM_BUTTON_2").to<f32>(), 0, init_npc_hub, "MM_BUTTON_2");
+        add_button(e, g, sprite_coords(100, 400), eng.get_text_size("DARTH_PLAGUEIS_COPYPASTA").to<f32>(), 0, init_npc_hub, "DARTH_PLAGUEIS_COPYPASTA");
         //add_button(e, g, sprite_coords(196, 400), sprite_coords(64, 64), 1, haha, "MM_BUTTON_2");
 
     });
@@ -120,7 +120,6 @@ void init_main_menu(engine& eng) {
 int main(int, char **) {
     printf("Exec begin\n");
     engine w;
-   screen_coords size = w.get_text_size("DARTH_PLAGUEIS_COPYPASTA");
     bool loop = true;
     timer t;
     t.start();

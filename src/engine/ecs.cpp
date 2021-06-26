@@ -9,6 +9,8 @@
 #include <common/png.h>
 #include <cmath>
 #include <ft2build.h>
+#include <harfbuzz/hb.h>
+#include <harfbuzz/hb-ft.h>
 #include "ecs.h"
 #include FT_FREETYPE_H
 #include FT_GLYPH_H
@@ -423,14 +425,10 @@ void import_locale(std::unordered_map<std::string, std::string>& locale) {
     }
 }
 
-#include <harfbuzz/hb.h>
-#include <harfbuzz/hb-ft.h>
-
 struct s_text::impl {
     FT_Library library;
     FT_Face face;
     hb_blob_t* blob = hb_blob_create_from_file("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf");
-
     hb_font_t* font;
 
     std::unordered_map<std::string, std::string> locale_lookup;
@@ -444,118 +442,152 @@ s_text::s_text() {
     import_locale(data->locale_lookup);
     data->font = hb_ft_font_create_referenced(data->face);
     hb_ft_font_set_funcs(data->font);
-    /*
-    hb_buffer_destroy(buf);
-    hb_font_destroy(font);
-    hb_face_destroy(face);
-    hb_blob_destroy(blob);
-    */
 }
 
+struct harfbuzz_buffer {
+public:
+    harfbuzz_buffer(std::string text, hb_font_t* font) {
+        buf = hb_buffer_create();
+        hb_buffer_set_direction(buf, HB_DIRECTION_LTR);
+        hb_buffer_set_script(buf, HB_SCRIPT_LATIN);
+        hb_buffer_set_language(buf, hb_language_from_string("en", -1));
+
+        hb_buffer_add_utf8(buf, text.c_str(), -1, 0, -1);
+        hb_shape(font, buf, NULL, 0);
+        glyph_info = hb_buffer_get_glyph_infos(buf, &_glyph_count);
+        glyph_pos = hb_buffer_get_glyph_positions(buf, &_glyph_count);
+    }
+    ~harfbuzz_buffer() { hb_buffer_destroy(buf); }
+
+    u32 glyph_count() { return _glyph_count; }
+    sprite_coords glyph_advance(size_t i) { return sprite_coords(glyph_pos[i].x_advance / 64.0f, glyph_pos[i].y_advance / 64.0f); }
+    sprite_coords glyph_offset(size_t i) { return sprite_coords(glyph_pos[i].x_offset / 64.0f, glyph_pos[i].x_offset / 64.0f); }
+private:
+    u32 _glyph_count;
+    hb_buffer_t* buf;
+    hb_glyph_info_t* glyph_info;
+    hb_glyph_position_t* glyph_pos;
+
+    [[no_unique_address]] no_copy disable_copy;
+    [[no_unique_address]] no_move disable_move;
+};
 
 
-
-std::vector<int> get_newlines(std::string& text) {
+// Break the string into lines of roughly 50 characters, then perform word wrapping and generate a new set of newlines.
+std::vector<int> s_text::get_numlines(std::string& text) {
     icu::UnicodeString s(text.c_str());
     UErrorCode status = U_ZERO_ERROR;
     icu::BreakIterator* char_locations = icu::BreakIterator::createCharacterInstance(icu::Locale::getUS(), status);
     char_locations->setText(s);
-    i32 num_chars = char_locations->preceding(text.length());
-    if (num_chars < 50) {
-        return std::vector<int>();
-    }
-
-    std::vector<int> newlines;
     icu::BreakIterator* linebreak_locations = icu::BreakIterator::createLineInstance(icu::Locale::getUS(), status);
     linebreak_locations->setText(s);
-    int break_index = linebreak_locations->first();
-    while (break_index != icu::BreakIterator::DONE) {
-        break_index = linebreak_locations->next();
-        int preceeding_char = char_locations->preceding(break_index);
-        if (preceeding_char >= ((newlines.size() + 1) * 50) && preceeding_char != icu::BreakIterator::DONE) {
 
-            int new_newline = linebreak_locations->preceding(break_index);
-            if (new_newline < text.size() && new_newline != 0) {
-                newlines.emplace_back(new_newline);
-                printf("registered newline at %i\n", new_newline);
+    harfbuzz_buffer buffer(text, data->font);
+    FT_Load_Char(data->face, '|', FT_LOAD_RENDER);
+    f32 lineheight = (data->face)->glyph->bitmap.rows * 1.15;
+    screen_coords box_size(0, 0);
+    u16 row_size = 0;
+    std::vector<int> line_indices;
+    int break_index = linebreak_locations->first();
+    int next_break = 50;
+
+    // Gather newlines, while calculating the size of the box required to display this data pre-word wrapping
+    for (int i = 0; i < text.size(); i++) {
+        row_size += buffer.glyph_advance(i).x;
+        if (i == break_index) {
+            int preceeding_char = char_locations->preceding(break_index);
+            if (preceeding_char >= next_break && preceeding_char != icu::BreakIterator::DONE) {
+                int new_newline = linebreak_locations->preceding(break_index + 1);
+                if (new_newline < text.size() && new_newline != 0) {
+                    line_indices.emplace_back(new_newline);
+                    FT_Load_Char(data->face, text[i], FT_LOAD_RENDER);
+                    box_size.x = std::max(box_size.x, u16(row_size + (data->face)->glyph->bitmap.width - buffer.glyph_advance(i).x));
+                    row_size = 0;
+                }
+                next_break = new_newline + 50;
             }
             break_index = linebreak_locations->next();
         }
     }
-    return newlines;
-}
 
+    int index = 0;
+    screen_coords new_box_size(0, 0);
+    row_size = 0;
+    linebreak_locations->first();
+    std::vector<int> new_linebreaks;
+    for (size_t line_index : line_indices) {
+        for (index; index < std::min(text.size(), line_index); index++) {
+            row_size += buffer.glyph_advance(index).x;
+        }
 
+        FT_Load_Char(data->face, text[index], FT_LOAD_RENDER);
+        bool loop = true;
+        // attempt to bring words from the next line up to this one
+        int word_width = 0;
+        while (loop) {
+            size_t new_newline = linebreak_locations->following(index);
 
-    void copy_bitmap(std::vector<u8>& h, FT_Bitmap* bmp,point<u16> pen, int width, color text_color) {
+            if (new_newline >= text.size())  {
+                new_linebreaks.emplace_back(index);
+                break;
+            };
 
-        for(size_t y = 0; y < bmp->rows; y++ ){
-            for (size_t x = 0; x < bmp->width; x++) {
-                size_t src_index = (x + (y * (bmp->width)));
-                size_t dst_index = ((x + pen.x) + ((y + pen.y) * width)) * 4;
-
-                if (dst_index >= h.size() || src_index >= bmp->rows * bmp->width) continue;
-                h[dst_index] = text_color.r;
-                h[dst_index + 1] = text_color.g;
-                h[dst_index + 2] = text_color.b;
-                h[dst_index + 3] = bmp->buffer[src_index];
+            for (int i = index; i < new_newline; i++) {
+                word_width += buffer.glyph_advance(i).x;
             }
+
+            if (row_size + word_width < box_size.x + (box_size.x / 90.0)) {
+                index = new_newline;
+            } else {
+                loop = false;
+                new_linebreaks.emplace_back(index);
+            };
         }
+        row_size = 0;
     }
-
-#include <png.h>
-void render_line(FT_Face face, hb_font_t* font, std::string text, std::vector<u8>& bmp,   point<u16> pen, int width, f32 lineheight, color text_color) {
-    hb_buffer_t* buf = hb_buffer_create();
-    hb_buffer_set_direction(buf, HB_DIRECTION_LTR);
-    hb_buffer_set_script(buf, HB_SCRIPT_LATIN);
-    hb_buffer_set_language(buf, hb_language_from_string("en", -1));
-
-    hb_buffer_add_utf8(buf, text.c_str(), -1, 0, -1);
-    hb_shape(hb_ft_font_create_referenced(face), buf, NULL, 0);
-    unsigned int glyph_count;
-    hb_glyph_info_t* glyph_info = hb_buffer_get_glyph_infos(buf, &glyph_count);
-    hb_glyph_position_t* glyph_pos = hb_buffer_get_glyph_positions(buf, &glyph_count);
-
-    auto newlines = get_newlines(text);
-    int newline_index = 0;
-    int next_newline = [&]() {
-        if (newlines.empty()) return 65535;
-        else return int(newlines[newline_index]);
-    }();
-
-    FT_Load_Char( face, '|', FT_LOAD_RENDER);
-     lineheight = (face)->glyph->bitmap.rows * 1.15;
-
-    for (unsigned int i = 0; i < glyph_count; i++) {
-        f32 x_offset  = glyph_pos[i].x_offset / 64.0f;
-        f32 y_offset  = glyph_pos[i].y_offset / 64.0f;
-        f32 x_advance = glyph_pos[i].x_advance / 64.0f;
-        f32 y_advance = glyph_pos[i].y_advance / 64.0f;
-
-        auto error = FT_Load_Char( face, text[i], FT_LOAD_RENDER);
-        if ( error ) continue;
-
-        if (i == next_newline) {
-            pen.x = 0;
-            pen.y += lineheight;
-            newline_index++;
-            next_newline = newline_index == newlines.size() ? 65535 : newlines[newline_index];
-        }
-
-        FT_Bitmap ftBitmap = (face)->glyph->bitmap;
-
-        int top =  face->glyph->bitmap_top;
-        float x0 = pen.x + x_offset + face->glyph->bitmap_left;
-        float y0 = floor(pen.y + y_offset + (lineheight - 5 - face->glyph->bitmap_top));
-
-
-        copy_bitmap(bmp, &ftBitmap, point<u16>(x0, y0), width, text_color);
-
-        pen.x += x_advance;
-        pen.y += y_advance;
-    }
-
+    new_linebreaks.emplace_back(text.size());
+    return new_linebreaks;
 }
+
+void write_glyph(image& atlas, FT_Bitmap* bmp, point<u16> pen, color text_color) {
+     for(size_t y = 0; y < bmp->rows; y++) {
+         for (size_t x = 0; x < bmp->width; x++) {
+             size_t src_index = (x + (y * (bmp->width)));
+             size_t dst_index = ((x + pen.x) + ((y + pen.y) * atlas.size().x));
+             if (dst_index >= (atlas.size().x * atlas.size().y) || src_index >= bmp->rows * bmp->width) continue;
+             atlas.write(dst_index, color(text_color.r, text_color.g, text_color.b, bmp->buffer[src_index]));
+         }
+     }
+}
+
+void s_text::render_line(std::string text, point<u16> pen, color text_color) {
+    harfbuzz_buffer buffer(text, data->font);
+
+    FT_Load_Char(data->face, '|', FT_LOAD_RENDER);
+    f32 lineheight = (data->face)->glyph->bitmap.rows * 1.15;
+
+    auto newlines = get_numlines(text);
+    int index = 0;
+    int i = newlines.size();
+    for (size_t line_index : newlines) {
+        for (index; index < std::min(text.size(), line_index); index++) {
+            auto error = FT_Load_Char(data->face, text[index], FT_LOAD_RENDER);
+            if (error) continue;
+
+            sprite_coords offset = buffer.glyph_offset(index);
+            sprite_coords advance = buffer.glyph_advance(index);
+            int top =  data->face->glyph->bitmap_top;
+            float x0 = pen.x + offset.x + data->face->glyph->bitmap_left;
+            float y0 = floor(pen.y + offset.y + (lineheight - 5 - data->face->glyph->bitmap_top));
+
+            write_glyph(tex->image_data, &data->face->glyph->bitmap, point<u16>(x0, y0), text_color);
+            pen += advance.to<u16>();
+        }
+        pen.x = 0;
+        pen.y += lineheight;
+    }
+}
+
 std::string s_text::replace_locale_macro(std::string& text) {
     auto it = data->locale_lookup.find(text);
     if (it == data->locale_lookup.end()) {
@@ -583,9 +615,8 @@ void s_text::run(pool<c_text>& texts, pool<c_display>& displays) {
     }
 
     if (num_text_entries != last_atlassize) regenerate = true;
-    if (num_text_entries == 0) return;
     last_atlassize = num_text_entries;
-    if (regenerate == false) return;
+    if (num_text_entries == 0 || regenerate == false) return;
 
     tex->image_data = image(std::vector<u8>(atlas_size.x * atlas_size.y * 4, 0), atlas_size.to<u16>());
     point<u16> pen(0, 0);
@@ -593,70 +624,123 @@ void s_text::run(pool<c_text>& texts, pool<c_display>& displays) {
     for(auto text : texts) {
         for (auto entry : text.text_entries) {
             if (entry.text == "") continue;
-
-            auto dim = displays.get(text.parent).sprites(text.sprite_index).get_dimensions(entry.quad_index);
-
-            render_line(data->face, data->font, replace_locale_macro(entry.text), tex->image_data.data(), pen, atlas_size.x, dim.size.y, entry.text_color);
-
-            point<f32> pos(0, pen.y / static_cast<f32>(atlas_size.y));
-            size<f32> new_dim(dim.size.x / static_cast<f32>(atlas_size.x), dim.size.y / static_cast<f32>(atlas_size.y));
-
-            displays.get(text.parent).sprites(text.sprite_index).set_uv(pos, new_dim, entry.quad_index);
-            pen.y += dim.size.y ;
+            render_line(replace_locale_macro(entry.text), pen, entry.text_color);
+            auto text_dim = displays.get(text.parent).sprites(text.sprite_index).get_dimensions(entry.quad_index);
+            point<f32> uv_pos(0, pen.y / static_cast<f32>(atlas_size.y));
+            size<f32> uv_size(text_dim.size.x / static_cast<f32>(atlas_size.x), text_dim.size.y / static_cast<f32>(atlas_size.y));
+            displays.get(text.parent).sprites(text.sprite_index).set_uv(uv_pos, uv_size, entry.quad_index);
+            pen.y += text_dim.size.y;
         }
         displays.get(text.parent).sprites(text.sprite_index).tex = tex;
         displays.get(text.parent).sprites(text.sprite_index).z_index = 9;
     }
     regenerate = false;
-/*
-    unsigned error = lodepng::encode("test.png", tex->image_data.data(), atlas_size.x, atlas_size.y);
-
-    //if there's an error, display it
-    if(error) std::cout << "encoder error " << error << ": "<< lodepng_error_text(error) << std::endl;*/
 }
 
-
-
-screen_coords s_text::get_text_size(std::string& text) {
-    std::string to_display = replace_locale_macro(text);
-    auto newlines = get_newlines(to_display);
-    int newline_index = 0;
-    int num_newlines = newlines.empty() ? 1 : newlines.size() + 1;
-    int next_newline = [&]() {
-       if (newlines.empty()) return 65535;
-       else return int(newlines[newline_index]);
-    }();
-
-    hb_buffer_t* buf = hb_buffer_create();
-    hb_buffer_set_direction(buf, HB_DIRECTION_LTR);
-    hb_buffer_set_script(buf, HB_SCRIPT_LATIN);
-    hb_buffer_set_language(buf, hb_language_from_string("en", -1));
-
-    hb_buffer_add_utf8(buf, to_display.c_str(), -1, 0, -1);
-    hb_shape(hb_ft_font_create_referenced(data->face), buf, NULL, 0);
-    unsigned int glyph_count;
-    hb_glyph_info_t* glyph_info = hb_buffer_get_glyph_infos(buf, &glyph_count);
-    hb_glyph_position_t* glyph_pos = hb_buffer_get_glyph_positions(buf, &glyph_count);
-
-
-    FT_Load_Char( data->face, '|', FT_LOAD_RENDER);
-    int lineheight = (data->face)->glyph->bitmap.rows * 1.15;
-
-    screen_coords box_size(0, lineheight * (num_newlines));
-    u16 row_size = 0;
-    for (int i = 0; i < glyph_count; i++) {
-        row_size += glyph_pos[i].x_advance / 64.0f;
-        if (i == next_newline) {
-            newline_index++;
-            next_newline = newline_index == newlines.size() ? 65535 : newlines[newline_index];
-            FT_Load_Char( data->face, to_display[i], FT_LOAD_RENDER);
-            row_size += (data->face)->glyph->bitmap.width;
-
-            box_size.x = std::max(box_size.x, row_size);
-            row_size = 0;
+screen_coords s_text::get_text_size(std::string& text_in) {
+    std::string text = replace_locale_macro(text_in);
+    harfbuzz_buffer buffer(text, data->font);
+    FT_Load_Char(data->face, '|', FT_LOAD_RENDER);
+    f32 lineheight = data->face->glyph->bitmap.rows * 1.15;
+    auto newlines = get_numlines(text);
+    int index = 0;
+    screen_coords box_size(0, lineheight * (newlines.size()));
+    for (size_t line_index : newlines) {
+        u16 row_size = 0;
+        for (index; index < std::min(line_index - 1, text.size() - 1); index++) {
+            row_size += buffer.glyph_advance(index).x;
         }
+        FT_Load_Char(data->face, text[index], FT_LOAD_RENDER);
+        box_size.x = std::max(u32(box_size.x), row_size + (data->face)->glyph->bitmap.width);
     }
-    box_size.x = std::max(box_size.x, row_size);
     return box_size;
 }
+
+size_t s_text::character_at_position(std::string text_in, screen_coords pos) {
+    std::string text = replace_locale_macro(text_in);
+    harfbuzz_buffer buffer(text, data->font);
+    FT_Load_Char(data->face, '|', FT_LOAD_RENDER);
+    f32 lineheight = data->face->glyph->bitmap.rows * 1.15;
+    auto newlines = get_numlines(text);
+    int index = 0;
+    screen_coords cursor(0, 0);
+    for (size_t line_index : newlines) {
+        for (index; index < std::min(line_index - 1, text.size() - 1); index++) {
+            if (pos.y >= cursor.y && pos.y <= cursor.y + lineheight) {
+                if (pos.x >= cursor.x && pos.x <= cursor.x + buffer.glyph_advance(index).x) {
+                    return index;
+                }
+            }
+            cursor.x += buffer.glyph_advance(index).x;
+        }
+        cursor.y += lineheight;
+        cursor.x = 0;
+    }
+    return text.size();
+}
+
+screen_coords s_text::position_of_character(std::string text_in, size_t pos) {
+    std::string text = replace_locale_macro(text_in);
+    harfbuzz_buffer buffer(text, data->font);
+    FT_Load_Char(data->face, '|', FT_LOAD_RENDER);
+    f32 lineheight = data->face->glyph->bitmap.rows * 1.15;
+    auto newlines = get_numlines(text);
+    int index = 0;
+    screen_coords box_size(0, 0);
+    for (size_t line_index : newlines) {
+        u16 row_size = 0;
+        for (index; index < std::min(line_index, pos); index++) {
+            row_size += buffer.glyph_advance(index).x;
+        }
+        box_size.y += lineheight;
+        box_size.x = std::max(box_size.x, row_size);
+    }
+    box_size.y -= lineheight;
+    return box_size;
+}
+
+
+int s_text::num_characters(std::string text_in) {
+    std::string text = replace_locale_macro(text_in);
+    icu::UnicodeString s(text.c_str());
+    UErrorCode status = U_ZERO_ERROR;
+    icu::BreakIterator* char_locations = icu::BreakIterator::createCharacterInstance(icu::Locale::getUS(), status);
+    char_locations->setText(s);
+
+    int char_index = 0;
+    int num_breaks = 0;
+    while (char_index != icu::BreakIterator::DONE) {
+        num_breaks++;
+        char_index = char_locations->next();
+    }
+    return num_breaks;
+}
+
+int s_text::bytes_of_character(std::string text_in, int char_in) {
+    std::string text = replace_locale_macro(text_in);
+    icu::UnicodeString s(text.c_str());
+    UErrorCode status = U_ZERO_ERROR;
+    icu::BreakIterator *char_locations = icu::BreakIterator::createCharacterInstance(icu::Locale::getUS(), status);
+    char_locations->setText(s);
+    char_locations->first();
+
+    int lpos = char_locations->next(char_in);
+    lpos = lpos == -1 ? 0 : lpos;
+    int rpos = char_locations->next();
+    rpos = rpos == -1 ? text.size() - 1 : rpos;
+    return rpos - lpos;
+}
+
+
+int s_text::character_byte_index(std::string text_in, int char_in) {
+    std::string text = replace_locale_macro(text_in);
+    icu::UnicodeString s(text.c_str());
+    UErrorCode status = U_ZERO_ERROR;
+    icu::BreakIterator *char_locations = icu::BreakIterator::createCharacterInstance(icu::Locale::getUS(), status);
+    char_locations->setText(s);
+
+    int byte_index = char_locations->following(char_in) - 1;
+    return byte_index == -1 ? text_in.size() - 1 : byte_index;
+}
+
 }

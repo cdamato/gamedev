@@ -219,6 +219,11 @@ bool sdl_window::poll_events() {
                 event_callback(e);
                 break;
             }
+            case SDL_TEXTINPUT: {
+                event_textinput e(event.text.text);
+                event_callback(e);
+                break;
+            }
             case SDL_WINDOWEVENT: {
                 switch (event.window.event) {
                     case SDL_WINDOWEVENT_RESIZED:
@@ -288,7 +293,11 @@ void renderer::render_layer(texture_manager& tm) {
 //     COMMON TEXTURE MANAGER CODE     //
 /////////////////////////////////////////
 
-texture* texture_manager::get(std::string name) { return &textures[texture_map[name]]; }
+texture* texture_manager::get(std::string name) {
+    auto it = texture_map.find(name);
+    if (it == texture_map.end()) throw std::runtime_error("Requested invalid texture");
+    return &textures[texture_map[name]];
+}
 texture* texture_manager::add(std::string name) {
     u32 id = get_new_id();
     texture* tex = &textures[id];

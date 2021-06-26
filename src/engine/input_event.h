@@ -2,6 +2,7 @@
 #define EVENT_H
 
 #include <common/basic_types.h>
+#include <string>
 
 struct input_event  {
 	virtual int event_id() = 0;
@@ -46,6 +47,17 @@ private:
 	screen_coords _pos {};
 };
 
+class event_textinput : public input_event {
+public:
+    EVENT_ID_TAG(3)
+
+    event_textinput(std::string text_in) : _text(text_in) {};
+    std::string text() const { return _text; }
+private:
+    std::string _text = "";
+};
+
+// todo - maybe use something better than this?
 enum command {
 	move_up,
 	move_left,
@@ -59,6 +71,8 @@ enum command {
 	nav_down,
 	nav_right,
 	nav_activate,
+	text_backspace,
+	text_delete,
 };
 
 #endif // EVENT_H

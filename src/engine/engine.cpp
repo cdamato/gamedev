@@ -83,6 +83,8 @@ settings_manager::settings_manager() {
     bindings[SDLK_DOWN] = command::nav_down;
     bindings[SDLK_RIGHT] = command::nav_right;
     bindings[SDLK_RETURN] = command::nav_activate;
+    bindings[SDLK_BACKSPACE] = command::text_backspace;
+    bindings[SDLK_DELETE] = command::text_delete;
 
     config_parser p("settings.txt");
     auto d = p.parse();

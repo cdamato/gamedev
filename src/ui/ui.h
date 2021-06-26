@@ -34,6 +34,11 @@ void initialize_dropdown_group(entity e, entity parent, u8 z_index, engine& g, i
 void selectiongrid_set_highlight(entity e, engine& g, u32 index, bool enter);
 void selectiongrid_navigation(entity e, engine& g,  u32 new_index);
 
+
+void textinput_event(entity e, engine& g, std::string text);
+void textinput_navigation(entity e, engine& g, u32 new_index);
+void add_textinput(entity e, entity parent, u8 z_index, engine& g, point<f32> pos, size<f32> grid_size);
+
 point<u16> get_gridindex(rect<f32> grid, size<u16> num_elements, point<f32> pos);
 
 void inv_transfer_init(entity e, engine& g, ecs::c_inventory&);

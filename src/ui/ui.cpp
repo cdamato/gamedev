@@ -137,11 +137,13 @@ entity at_cursor(entity e, engine& g, screen_coords cursor) {
     return at_cursor<type>(next, g, cursor);
 }
 
-void send_actionevent(entity e, engine& g, bool release) {
-    g.ui.hover_timer.start();
+bool send_actionevent(entity e, engine& g, bool release) {
     if (e != 65535 && e != g.ui.root) {
+        g.ui.hover_timer.start();
         g.ecs.get<ecs::c_widget>(e).on_activate(e, g, release);
+        return true;
     }
+    return false;
 }
 
 bool handle_button(input_event& e_in, engine& g) {
@@ -150,16 +152,24 @@ bool handle_button(input_event& e_in, engine& g) {
 
     entity dest = at_cursor<event_mousebutton::id>(g.ui.root, g, ev.pos());
     entity held = g.ui.cursor;
-    if (ev.release()) {
-        g.ui.cursor = 65535;
-    } else {
-        g.ui.cursor = dest;
+    if (g.ecs.get<ecs::c_widget>(dest).accepts_textinput) {
+        screen_coords position = g.ui.last_position - g.ecs.get<ecs::c_display>(dest).sprites(0).get_dimensions().origin.to<u16>();
+        textinput_navigation(dest, g, g.ecs.systems.text.character_at_position(g.ecs.get<ecs::c_text>(dest).text_entries.begin()->text, position));
+        return true;
     }
     while (g.ecs.get<ecs::c_widget>(dest).on_activate == nullptr) {
         dest = g.ecs.get<ecs::c_widget>(dest).parent;
         if (dest == g.ui.root) break;
     }
-    send_actionevent(dest, g, ev.release());
+    if (ev.release()) {
+        g.ui.cursor = 65535;
+    } else {
+        g.ui.cursor = dest;
+    }
+    bool status;
+
+        status = send_actionevent(dest, g, ev.release());
+
     // send a nav event when releasing the cursor away from the held entity
     if (ev.release() && held != dest && held != 65535) {
         ecs::c_widget::activation_action function = g.ecs.get<ecs::c_widget>(held).on_activate;
@@ -169,6 +179,7 @@ bool handle_button(input_event& e_in, engine& g) {
         send_navevent(held, g, cursorpos_to_navindex(held, g, g.ui.last_position.to<f32>()));
     }
 
+    if (status) return true;
     world_coords h (ev.pos().x / 64.0f, ev.pos().y / 64.0f);
     if (ev.release() && g.in_dungeon) {
         ecs::c_player& p = g.ecs.get<ecs::c_player>(g.player_id());
@@ -250,6 +261,13 @@ bool handle_keypress(input_event& e_in, engine& g) {
         case command::nav_activate:
             g.ui.last_position = screen_coords(65535, 65535);
             send_actionevent(g.ui.focus, g, e.release());
+        case command::text_backspace:
+            if (!e.release()) return false;
+            if (g.ecs.get<ecs::c_widget>(g.ui.focus).accepts_textinput == true) {
+                std::string thing = " ";
+                thing[0] = 0x08;
+                textinput_event(g.ui.focus, g, thing);
+            }
     }
     return true;
 }
@@ -267,15 +285,17 @@ bool handle_cursor(input_event& e_in, engine& g) {
 
     g.ui.last_position = e.pos();
     if (start == dest)  {
+        if (g.ecs.get<ecs::c_widget>(dest).accepts_textinput) return true;
         send_navevent(dest, g, cursorpos_to_navindex(dest, g, e.pos().to<f32>()));
         return true;
     }
-    // The cursor is switching between entities, give focus transition events
-    if (dest != 65535 && dest != g.ui.root) {
-        send_navevent(dest, g, cursorpos_to_navindex(dest, g, e.pos().to<f32>()));
-    }
     if (start != 65535 && start != g.ui.root) {
         send_navevent(start, g, cursorpos_to_navindex(start, g, e.pos().to<f32>()));
+    }
+    // The cursor is switching between entities, give focus transition events
+    if (dest != 65535 && dest != g.ui.root) {
+        if (g.ecs.get<ecs::c_widget>(dest).accepts_textinput) return true;
+        send_navevent(dest, g, cursorpos_to_navindex(dest, g, e.pos().to<f32>()));
     }
 
     return true;
@@ -287,7 +307,13 @@ bool handle_hover(input_event& e, engine& g) {
     //return g.ecs.get<ecs::c_event_callbacks>(dest).run_event(e);
 }
 
-
+bool handle_textinput(input_event& ev_in, engine& g) {
+    auto& ev = dynamic_cast<event_textinput&>(ev_in);
+    if (g.ecs.get<ecs::c_widget>(g.ui.focus).accepts_textinput) {
+        textinput_event(g.ui.focus, g, ev.text());
+    }
+    return true;
+}
 
 bool process_event(input_event& e, engine& g) {
     g.ui.hover_timer.start();
@@ -300,6 +326,8 @@ bool process_event(input_event& e, engine& g) {
             return handle_button(e, g);
         case event_cursor::id:
             return handle_cursor(e, g);
+        case event_textinput::id:
+            return handle_textinput(e, g);
         default:
             return true;
     }

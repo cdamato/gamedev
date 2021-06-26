@@ -336,3 +336,95 @@ void selectiongrid_navigation(entity e, engine& g, u32 new_index) {
     select.highlight = project_to_2D<u16>(new_index, select.grid_size.x);
 }
 
+////////////////////////////
+//     TEXTINPUT CODE     //
+////////////////////////////
+
+// todo - add newline support
+void textinput_event(entity e, engine& g, std::string new_text) {
+    auto& text = g.ecs.get<ecs::c_text>(e);
+    auto& select = g.ecs.get<ecs::c_selection>(e);
+    auto& text_str = text.text_entries.begin()->text;
+    if (new_text[0] == 0x08 && new_text.size() == 1) { // backspace
+        if (select.highlight.x < 1) {
+            text_str = "  ";
+            return;
+        } else {
+            int byte_index_to_delete = g.ecs.systems.text.character_byte_index(text_str, select.highlight.x - 1);
+            int bytes_to_delete = g.ecs.systems.text.bytes_of_character(text_str, select.highlight.x - 1);
+            int remaining_bytes = int(text_str.size()) - (byte_index_to_delete + bytes_to_delete);
+            printf("susbttring half i is %s, half two is %s\n", text_str.substr(0, byte_index_to_delete).c_str(),
+                   text_str.substr(byte_index_to_delete + bytes_to_delete, remaining_bytes).c_str());
+            text_str = text_str.substr(0, byte_index_to_delete).c_str() + text_str.substr(byte_index_to_delete + bytes_to_delete, remaining_bytes);
+        }
+    } else {
+        if (select.highlight.x == select.grid_size.x) {
+            text_str += new_text;
+        } else {
+            int bytes_before_cursor = g.ecs.systems.text.character_byte_index(text_str, select.highlight.x);
+            int bytes_at_cursor = g.ecs.systems.text.bytes_of_character(text_str, select.highlight.x);
+            int remaining_bytes = int(text_str.size()) - (bytes_before_cursor);
+
+            printf("susbttring half i is %s, half two is %s\n", text_str.substr(0, bytes_before_cursor).c_str(),
+                   text_str.substr(bytes_before_cursor, remaining_bytes).c_str());
+            text_str = text_str.substr(0, bytes_before_cursor).c_str() + new_text + text_str.substr(bytes_before_cursor, remaining_bytes);
+        }
+    }
+    text.text_entries.begin()->regen = true;
+    int new_numchars = g.ecs.systems.text.num_characters(text_str) - 1;
+    int characters_added = new_numchars - (select.grid_size.x) ;
+    select.highlight.x += characters_added;
+    select.grid_size.x += characters_added;
+
+    auto& display = g.ecs.get<ecs::c_display>(e);
+    auto new_cursor_pos = g.ecs.systems.text.position_of_character(text_str, select.highlight.x).to<f32>() + display.sprites(0).get_dimensions(0).origin;
+    display.sprites(1).set_pos(new_cursor_pos, display.sprites(1).get_dimensions(0).size, 0);
+}
+
+void textinput_navigation(entity e, engine& g, u32 new_index) {
+    auto& text = g.ecs.get<ecs::c_text>(e);
+    auto& display = g.ecs.get<ecs::c_display>(e);
+    auto& select = g.ecs.get<ecs::c_selection>(e);
+    select.highlight.x = std::min(select.grid_size.x, u16(new_index));
+    select.highlight.x = select.highlight.x == 65535 ? 0 : select.highlight.x;
+    auto new_cursor_pos = g.ecs.systems.text.position_of_character(text.text_entries.begin()->text, select.highlight.x ).to<f32>() + display.sprites(0).get_dimensions(0).origin;
+    display.sprites(1).set_pos(new_cursor_pos, display.sprites(1).get_dimensions(0).size, 0);
+
+}
+
+// some oddities - to avoid creating a new component, this utilizes existing components in weird ways.
+//     - c_selection's grid size uses its x component to store a character index, and y to store the number of lines
+//     - a single bool in the widget component stores whether a component supports text input
+//     - additionally, because of how text input works, clicking with the mouse redirects to a navigation action
+void add_textinput(entity e, entity parent, u8 z_index, engine& g, point<f32> pos, size<f32> grid_size) {
+    make_widget(e, g, parent);
+    g.ui.focus = e;
+    auto& widget = g.ecs.get<ecs::c_widget>(e);
+    widget.accepts_textinput = true;
+    widget.on_navigate = textinput_navigation;
+    auto& select = g.ecs.add<ecs::c_selection>(e);
+    select.grid_size = size<u16>(0, 1);
+    select.highlight.x = 0;
+
+    auto& display = g.ecs.add<ecs::c_display>(e);
+
+
+
+    display.add_sprite(1, render_layers::ui);
+    display.sprites(0).tex = g.textures().get("menu_background");
+    display.sprites(0).z_index = z_index;
+    display.sprites(0).set_pos(pos, grid_size, 0);
+
+    display.add_sprite(1, render_layers::ui);
+    display.sprites(1).tex = g.textures().get("cursor_and_highlight");
+    display.sprites(1).z_index = z_index;
+    display.sprites(1).set_pos(pos, sprite_coords(6, grid_size.y), 0);
+    display.sprites(1).set_tex_region(0, 0);
+
+
+
+    auto& text = g.ecs.add<ecs::c_text>(e);
+    text.sprite_index = display.add_sprite(1, render_layers::ui);
+    text.text_entries.emplace_back(ecs::c_text::text_entry{});
+    display.sprites(text.sprite_index ).set_pos(pos, grid_size, 0);
+}
