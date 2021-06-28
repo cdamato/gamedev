@@ -1,6 +1,11 @@
 MM_BUTTON_1 = "!!"
 MM_BUTTON_2 = "??"
 
+GRAPHICSMENU_FULLSCREEN_CONTROL = "Fullscreen"
+GRAPHICSMENU_VSYNC_CONTROL = "V-Sync"
+GRAPHICSMENU_WINDOWRES_CONTROL = "Window Resolution"
+GRAPHICSMENU_RENDERER_CONTROL = "Renderer Type"
+
 # for testing large text handling
 DARTH_PLAGUEIS_COPYPASTA = "\
 Did you ever hear the tragedy of Darth Plagueis the Wise? I thought not. It's not a story the Jedi would tell you. \

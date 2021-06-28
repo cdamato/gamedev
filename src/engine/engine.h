@@ -72,13 +72,13 @@ public:
 		std::apply(func, std::tuple_cat(std::forward_as_tuple(e, *this), std::forward_as_tuple(args...)));
 		return e;
 	};
-
+	entity create_entity() { return ecs.entities.add_entity();	}
 	void destroy_entity(entity e);
 	entity player_id() { return ecs._player_id; }
 	entity map_id() { return ecs._map_id; }
 
 
-	screen_coords get_text_size(std::string text) { return ecs.systems.text.get_text_size(text); }
+	sprite_coords get_text_size(std::string text) { return ecs.systems.text.get_text_size(text).to<f32>(); }
 	bool in_dungeon = false;
 	world_coords offset = world_coords(0, 0);
     std::bitset<8> command_states;

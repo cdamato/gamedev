@@ -8,7 +8,7 @@ void resize_widget( entity e, engine& g,f32 scale_factor, rect<f32> old_parent_r
 void resize_ui(engine& g, f32 scale_factor);
 
 void checkbox_navigation(entity e, engine& g, u32 new_index);
-void add_checkbox(entity e, engine& g, point<f32> pos, size<f32> grid_size, u32 index, bool state, std::string label);
+void add_checkbox(entity e, engine& g, point<f32> text_pos, size<f32> text_size, point<f32> checkbox_pos, u32 index, bool state, std::string label);
 void initialize_checkbox_group(entity e, entity parent, u8 z_index, engine& g, u32 num_checkboxes);
 
 
@@ -27,7 +27,7 @@ void initialize_button_group(entity e, entity parent, u8 z_index, engine& g, int
 
 void dropdown_activation(entity e, engine& g, bool release);
 void dropdown_navigation(entity e, engine& g, u32 new_index);
-void add_dropdown(entity e, engine& g, point<f32> pos, size<f32> grid_size, u32 index, std::vector<std::string> options, int active);
+void add_dropdown(entity e, engine& g, point<f32> pos, size<f32> grid_size, point<f32> box_pos, size<f32> box_size, u32 index, std::vector<std::string> options, std::string label, int active);
 void initialize_dropdown_group(entity e, entity parent, u8 z_index, engine& g, int num_dropdowns);
 
 

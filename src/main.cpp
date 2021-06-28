@@ -110,7 +110,7 @@ void haha(entity e, engine&, bool release) {
 }
 void init_main_menu(engine& eng) {
     eng.create_entity([&](entity e, engine& g) {
-        initialize_button_group(e, g.ui.root, 5, g,  2);
+        initialize_button_group(e, g.ui.root, 5, g, 1);
         add_button(e, g, sprite_coords(100, 400), eng.get_text_size("DARTH_PLAGUEIS_COPYPASTA").to<f32>(), 0, init_npc_hub, "DARTH_PLAGUEIS_COPYPASTA");
         //add_button(e, g, sprite_coords(196, 400), sprite_coords(64, 64), 1, haha, "MM_BUTTON_2");
 

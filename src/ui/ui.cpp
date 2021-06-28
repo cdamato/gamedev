@@ -38,6 +38,9 @@ void resize_ui(engine& g, f32 scale_factor) {
 }
 
 int cursorpos_to_navindex(entity e, engine& g, sprite_coords ev_pos) {
+    if (!g.ecs.exists<ecs::c_selection>(e)) {
+        return 0;
+    }
     auto& select = g.ecs.get<ecs::c_selection>(e);
     rect<f32> grid_entry = g.ecs.get<ecs::c_display>(e).sprites(0).get_dimensions(0);
     point<u16> cursor_focus = [&] () {;
@@ -85,7 +88,6 @@ int cursorpos_to_navindex(entity e, engine& g, sprite_coords ev_pos) {
 bool send_navevent(entity e, engine& g, int new_index) {
     g.ui.hover_timer.start();
     auto& w = g.ecs.get<ecs::c_widget>(e);
-    auto& select = g.ecs.get<ecs::c_selection>(e);
 
     if (g.ecs.exists<ecs::c_checkbox>(e)) {
         checkbox_navigation(e, g, new_index);
@@ -101,7 +103,8 @@ bool send_navevent(entity e, engine& g, int new_index) {
     } else if (g.ecs.exists<ecs::c_dropdown>(e)) {
         dropdown_navigation(e, g, new_index);
     } else {
-        w.on_navigate(e, g, new_index);
+        if (w.on_navigate != nullptr)
+            w.on_navigate(e, g, new_index);
     }
     return true;
 }
@@ -309,6 +312,7 @@ bool handle_hover(input_event& e, engine& g) {
 
 bool handle_textinput(input_event& ev_in, engine& g) {
     auto& ev = dynamic_cast<event_textinput&>(ev_in);
+    if (g.ui.focus == 65535) return false;
     if (g.ecs.get<ecs::c_widget>(g.ui.focus).accepts_textinput) {
         textinput_event(g.ui.focus, g, ev.text());
     }
