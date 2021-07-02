@@ -11,7 +11,7 @@ struct engine;
 
 void init_npc_hub(engine& e);
 void basic_sprite_setup(entity e, engine& g, render_layers layer, sprite_coords origin, sprite_coords pos_size, size_t tex_index, std::string texname);
-void egen_bullet(entity, engine&, std::string, world_coords, world_coords, world_coords, world_coords, ecs::c_collision::flags);
+void egen_bullet(entity, engine&, std::string, world_coords, world_coords, world_coords, world_coords,  ecs::collision::flags);
 void egen_enemy(entity, engine&, world_coords);
 
 void setup_player(engine&);

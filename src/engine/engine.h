@@ -59,7 +59,6 @@ public:
 	game_state_manager game_state;
 	game_data_manager game_data;
     display::texture_manager& textures() { return display.textures(); }
-    display::window_impl& window() { return display.get_window(); }
 
 	engine();
 	bool process_events();
@@ -82,13 +81,19 @@ public:
 	bool in_dungeon = false;
 	world_coords offset = world_coords(0, 0);
     std::bitset<8> command_states;
+    bool quit_received = false;
 private:
     display::renderer& renderer() { return display.get_renderer(); }
     display::display_manager display;
 };
 
-void remove_child(ecs::c_widget& w, entity b);
+void remove_child( ecs::widget& w, entity b);
 bool process_event(input_event& ev, engine&);
 
+
+bool handle_keypress(input_event& ev, engine& g);
+bool handle_button(input_event& ev, engine& g);
+bool handle_cursor(input_event& ev, engine& g);
+bool handle_textinput(input_event& ev, engine& g);
 
 #endif //ENGINE_H

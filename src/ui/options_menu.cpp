@@ -4,7 +4,7 @@
 
 void options_menu_init(entity e, engine& g, entity root, screen_coords pos_in) {
     make_widget(e, g, g.ui.root);
-    auto& display = g.ecs.add<ecs::c_display>(e);
+    auto& display = g.ecs.add<ecs::display>(e);
     display.add_sprite(1, render_layers::ui);
 
     sprite_coords pos = pos_in.to<f32>();

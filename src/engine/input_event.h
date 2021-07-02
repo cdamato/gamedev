@@ -6,6 +6,7 @@
 
 struct input_event  {
 	virtual int event_id() = 0;
+	virtual ~input_event() {};
 };
 
 #define EVENT_ID_TAG(i) \
@@ -55,6 +56,21 @@ public:
     std::string text() const { return _text; }
 private:
     std::string _text = "";
+};
+
+class event_quit : public input_event {
+public:
+	EVENT_ID_TAG(4)
+};
+
+class event_windowresize : public input_event {
+public:
+	EVENT_ID_TAG(5)
+
+	event_windowresize(screen_coords size_in) : _size(size_in) {};
+	screen_coords size() const { return _size; }
+private:
+	screen_coords _size {};
 };
 
 // todo - maybe use something better than this?

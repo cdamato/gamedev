@@ -4,11 +4,10 @@
 #include <SDL2/SDL.h>
 
 void engine::run_tick() {
-    world_coords start_pos = ecs.get<ecs::c_display>(player_id()).get_dimensions().origin;
+    world_coords start_pos = ecs.get<ecs::display>(player_id()).get_dimensions().origin;
 
     ecs.run_ecs(settings.framerate_multiplier);
     ui.active_interact = ecs.systems.proxinteract.active_interact;
-    //renderer.set_texture_data()
     for (auto logic_func : logic.logic) {
         logic_func(*this);
     }
@@ -18,7 +17,7 @@ void engine::run_tick() {
         ui.hover_active = true;
         entity focus = ui.focus;
         if (focus != 65535 && focus != ui.root) {
-            auto& widget = ecs.get<ecs::c_widget>(focus);
+            auto& widget = ecs.get<ecs::widget>(focus);
             if (widget.on_hover != nullptr) {
                 widget.on_hover(focus, *this);
             }
@@ -32,7 +31,7 @@ void engine::run_tick() {
 
     renderer().set_camera(offset);
     renderer().clear_sprites();
-    for (auto& display : ecs.components.get_pool(ecs::type_tag<ecs::c_display>())) {
+    for (auto& display : ecs.components.get_pool(ecs::type_tag<ecs::display>())) {
         for (auto& sprite : display) {
             if (sprite.layer == render_layers::null) continue;
             renderer().add_sprite(sprite);
@@ -40,7 +39,7 @@ void engine::run_tick() {
     }
     renderer().mark_sprites_dirty();
 
-    world_coords end_pos = ecs.get<ecs::c_display>(player_id()).get_dimensions().origin;
+    world_coords end_pos = ecs.get<ecs::display>(player_id()).get_dimensions().origin;
     offset += (end_pos - start_pos);
 }
 
@@ -48,9 +47,9 @@ void engine::run_tick() {
 void engine::destroy_entity(entity e) {
     ecs.entities.mark_entity(e);
     // Recursively delete child widget entities, remove entity from parent
-    if (ecs.exists<ecs::c_widget>(e)) {
-        remove_child(ecs.get<ecs::c_widget>(ecs.get<ecs::c_widget>(e).parent), e);
-        ecs::c_widget& w = ecs.get<ecs::c_widget>(e);
+    if (ecs.exists<ecs::widget>(e)) {
+        remove_child(ecs.get<ecs::widget>(ecs.get<ecs::widget>(e).parent), e);
+         ecs::widget& w = ecs.get<ecs::widget>(e);
         for (auto child : w.children) destroy_entity(child);
     }
 }
@@ -107,42 +106,60 @@ settings_manager::settings_manager() {
 }
 
 bool engine::process_events() {
-    return window().poll_events();
+    auto event_buffer = display.poll_events();
+    for (auto& e : event_buffer) {
+        switch ((*e).event_id()) {
+            case event_keypress::id:
+                return handle_keypress(*e, *this);
+            case event_mousebutton::id:
+                return handle_button(*e, *this);
+            case event_cursor::id:
+                return handle_cursor(*e, *this);
+            case event_textinput::id:
+                return handle_textinput(*e, *this);
+            case event_quit::id:
+                quit_received = true;
+                return true;
+            case event_windowresize::id:
+                renderer().set_viewport(reinterpret_cast<event_windowresize&>(*e).size());
+                return true;
+            default:
+                return true;
+        }
+    }
+    return true;
 }
 
 engine::engine() {
 
     display.initialize(display::display_manager::display_types(settings.flags.test(window_flags::use_software_render)), settings.resolution);
     printf("Window Initialized\n");
-    window().event_callback = [this](input_event& ev) { process_event(ev, *this); };
-    window().resize_callback = [this](screen_coords size) { renderer().set_viewport(size); };
 
     ecs.systems.shooting.bullet_types.push_back(ecs::s_shooting::bullet{world_coords(0.3, 0.6), world_coords(0.25, 0.25), "bullet"});
-    ecs.systems.shooting.shoot = [this] (std::string s, world_coords d, world_coords v, world_coords o, world_coords t, ecs::c_collision::flags a) {
+    ecs.systems.shooting.shoot = [this] (std::string s, world_coords d, world_coords v, world_coords o, world_coords t,  ecs::collision::flags a) {
         create_entity(egen_bullet, s, d, v, o, t, a);
     };
 
-    window().swap_buffers(renderer());
+    display.render();
     ecs._map_id = create_entity([&](entity, engine&){});
     ecs._player_id = create_entity([&](entity, engine&){});
-    ecs.add<ecs::c_player>(ecs._player_id);
-    ecs.add<ecs::c_mapdata>(map_id());
+    ecs.add<ecs::player>(ecs._player_id);
+    ecs.add<ecs::mapdata>(map_id());
 
     ecs.systems.health.set_texture(textures().add("healthbar_atlas"));
     ecs.systems.text.set_texture(textures().add("text_atlas"));
 
-    auto& inv = ecs.add<ecs::c_inventory>(player_id());
-    ecs.add<ecs::c_display>(player_id());
-    ecs.add<ecs::c_weapon_pool>(player_id());
+    auto& inv = ecs.add<ecs::inventory>(player_id());
+    ecs.add<ecs::display>(player_id());
+    ecs.add<ecs::weapon_pool>(player_id());
     for(int i = 0; i < 36; i++) {
         u32 h = rand() % 3;
         if (h == 2) continue;
-        inv.data.add(i, ecs::c_inventory::item{h, 0});
+        inv.data.add(i,  ecs::inventory::item{h, 0});
     }
 
-    renderer().set_viewport(window().resolution());
     create_entity([&](entity e, engine& g){
-        g.ecs.add<ecs::c_widget>(e);
+        g.ecs.add<ecs::widget>(e);
         g.ui.root = e;
     });
 }

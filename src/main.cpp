@@ -13,7 +13,7 @@
 void init_main_menu(engine& eng);
 void test_enemies_gone(engine& e) {
 
-    auto& enemy_pool = e.ecs.pool<ecs::c_enemy>();
+    auto& enemy_pool = e.ecs.pool<ecs::enemy>();
     if (enemy_pool.size() == 0) {
         e.logic.remove(&test_enemies_gone);
         init_main_menu(e);
@@ -42,7 +42,7 @@ void storage_chest_init(entity e, engine& g, bool release) {
         g.command_states.set(command::toggle_inventory, false);
         return;
     }
-    //g.create_entity([&](entity new_e, engine& g) { inv_transfer_init(new_e, g, g.ecs.get<ecs::c_inventory>(e)); });
+    //g.create_entity([&](entity new_e, engine& g) { inv_transfer_init(new_e, g, g.ecs.get<ecs::inventory>(e)); });
 }
 
 
@@ -75,13 +75,13 @@ void init_npc_hub(entity e, engine& g, bool release) {
         basic_sprite_setup(e, g, render_layers::sprites, sc_origin, sc_size, 0, "button");
         make_widget(e, g, g.ui.root);
 
-        ecs::c_inventory& inv = g.ecs.add<ecs::c_inventory>(e);
-        ecs::c_proximity& prox = g.ecs.add<ecs::c_proximity>(e);
-        prox.shape = ecs::c_proximity::shape::rectangle;
+         ecs::inventory& inv = g.ecs.add<ecs::inventory>(e);
+         ecs::proximity& prox = g.ecs.add<ecs::proximity>(e);
+        prox.shape =  ecs::proximity::shape::rectangle;
         prox.origin = world_coords(sc_origin.x - 1, sc_origin.y);
         prox.radii = world_coords(sc_size.x + 2, sc_size.y + 1);
 
-        auto& w = g.ecs.get<ecs::c_widget>(e);
+        auto& w = g.ecs.get<ecs::widget>(e);
         w.on_activate = storage_chest_init;
     });
 
@@ -95,12 +95,12 @@ void init_npc_hub(entity e, engine& g, bool release) {
         basic_sprite_setup(e, g, render_layers::sprites, dp_origin, dp_size, 0, "button");
         make_widget(e, g, g.ui.root);
 
-        ecs::c_proximity& prox = g.ecs.add<ecs::c_proximity>(e);
-        prox.shape = ecs::c_proximity::shape::rectangle;
+         ecs::proximity& prox = g.ecs.add<ecs::proximity>(e);
+        prox.shape =  ecs::proximity::shape::rectangle;
         prox.origin = world_coords(dp_origin.x - 1, dp_origin.y);
         prox.radii = world_coords(dp_size.x + 2, dp_size.y + 1);
 
-        auto& w = g.ecs.get<ecs::c_widget>(e);
+        auto& w = g.ecs.get<ecs::widget>(e);
         w.on_activate = activate_dungeon;
     });
 }
@@ -130,13 +130,13 @@ int main(int, char **) {
     int numframes = 0;
 
     init_main_menu(w);
-    while (loop)
+    while (!w.quit_received)
     {
         int ms_per_frame = 1000000 / (30 * w.settings.framerate_multiplier);
         lag += t.elapsed<timer::microseconds>();
         t.start();
 
-        loop = w.process_events();
+        w.process_events();
 
         if ( fpscounter.elapsed<timer::seconds>().count() >= 1.0 ) {
             printf("%f ms/frame\n", 1000.0f / double(numframes));
@@ -150,12 +150,9 @@ int main(int, char **) {
             w.run_tick();
             lag -= timer::microseconds(ms_per_frame);
         }
-
-
-        if (!w.window().renderer_busy()) {
-            numframes++;
-            w.render();
-        }
+        
+        numframes++;
+        w.render();
     }
     return 0;
 }

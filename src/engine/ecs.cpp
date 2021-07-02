@@ -53,14 +53,14 @@ entity_manager::entity_manager() {
 }
 
 void ecs_engine::run_ecs(int framerate_multiplier) {
-    c_player& player = pool<c_player>().get(_player_id);
-	system_velocity_run(pool<c_velocity>(), pool<c_display>(), framerate_multiplier);
-	system_collison_run(pool<c_collision>(), pool<c_display>(), *pool<c_mapdata>().begin());
-	systems.shooting.run(pool<c_display>(), pool<c_weapon_pool>(), player);
-	systems.health.run(pool<c_health>(), pool<c_damage>(), entities);
-	systems.health.update_healthbars(pool<c_health>(), pool<c_display>());
-    systems.proxinteract.run(pool<c_proximity>(), pool<c_widget>(), pool<c_display>().get(_player_id));
-	systems.text.run(pool<c_text>(), pool<c_display>());
+    player& player_component = pool<player>().get(_player_id);
+	system_velocity_run(pool<velocity>(), pool<display>(), framerate_multiplier);
+	system_collison_run(pool<collision>(), pool<display>(), *pool<mapdata>().begin());
+	systems.shooting.run(pool<display>(), pool<weapon_pool>(), player_component);
+	systems.health.run(pool<health>(), pool<damage>(), entities);
+	systems.health.update_healthbars(pool<health>(), pool<display>());
+    systems.proxinteract.run(pool<proximity>(), pool<widget>(), pool<display>().get(_player_id));
+	systems.text.run(pool<text>(), pool<display>());
 	std::vector<entity> destroyed = entities.remove_marked();
 	for (auto entity : destroyed) {
 		components.remove_all(entity);
@@ -80,30 +80,30 @@ entity entity_manager::add_entity() {
 //     ECS COMPONENT CODE     //
 ////////////////////////////////
 
-u8 c_collision:: get_team_detectors() { return collision_flags.to_ulong() & 0b111; }
-u8 c_collision::get_team_signals() { return (collision_flags.to_ulong() & 0b111000) >> 3; }
-u8 c_collision:: get_tilemap_collision() { return (collision_flags.to_ulong() & 0b11000000) >> 6; }
-void c_collision::set_team_detector(flags to_set) { collision_flags |= std::bitset<8>(to_set); }
-void c_collision::set_team_signal(flags to_set) { collision_flags |= std::bitset<8>(to_set << 3); }
-void c_collision:: set_tilemap_collision(flags to_set) { collision_flags |= std::bitset<8>(to_set); }
+u8 collision:: get_team_detectors() { return collision_flags.to_ulong() & 0b111; }
+u8 collision::get_team_signals() { return (collision_flags.to_ulong() & 0b111000) >> 3; }
+u8 collision:: get_tilemap_collision() { return (collision_flags.to_ulong() & 0b11000000) >> 6; }
+void collision::set_team_detector(flags to_set) { collision_flags |= std::bitset<8>(to_set); }
+void collision::set_team_signal(flags to_set) { collision_flags |= std::bitset<8>(to_set << 3); }
+void collision:: set_tilemap_collision(flags to_set) { collision_flags |= std::bitset<8>(to_set); }
 
-bool c_mapdata::tile_data::is_occupied(u8 quad_index, u8 type) {
+bool mapdata::tile_data::is_occupied(u8 quad_index, u8 type) {
     if (type == 0) return false;
     u8 bitmask = type << (quad_index * 2);
     return (collision & std::bitset<8>(bitmask)) == bitmask;
 }
 
-void c_mapdata::tile_data::set_data(u8 quad_index, u8 type) {
+void mapdata::tile_data::set_data(u8 quad_index, u8 type) {
     std::bitset<8> aa(type << (quad_index * 2));
     collision |= aa;
 }
 
-u32 c_display::add_sprite(u16 num_quads, render_layers layer) {
+u32 display::add_sprite(u16 num_quads, render_layers layer) {
     _sprites.push_back(sprite_data(num_quads, layer));
     return _sprites.size() - 1;
 }
 
-rect<f32> c_display::get_dimensions() {
+rect<f32> display::get_dimensions() {
     sprite_coords min(65535, 65535);
     sprite_coords max(0, 0);
 
@@ -127,14 +127,14 @@ rect<f32> c_display::get_dimensions() {
 //     S_COLLISION     //
 /////////////////////////
 
-bool sprite_has_collision(size_t i, c_collision& col) {
+bool sprite_has_collision(size_t i, collision& col) {
     for (auto it : col.disabled_sprites)
         if (it == i) return false;
     return true;
 }
 
 // add the normals of all valid sprites in dpy to the vector normals
-void add_normals(c_display& dpy, c_collision& col,std::vector<world_coords>& normals) {
+void add_normals(display& dpy, collision& col,std::vector<world_coords>& normals) {
     size_t index = 0;
     for (auto& sprite : dpy) {
         index++;
@@ -150,7 +150,7 @@ void add_normals(c_display& dpy, c_collision& col,std::vector<world_coords>& nor
 }
 
 // Project the vertices of the shape onto each normal, to determine overlaps and gaps
-void project_shape(c_display& spr, c_collision& col, world_coords normal, f32& min, f32& max) {
+void project_shape(display& spr, collision& col, world_coords normal, f32& min, f32& max) {
     size_t index = 0;
     for (auto& sprite : spr) {
         index++;
@@ -167,7 +167,7 @@ void project_shape(c_display& spr, c_collision& col, world_coords normal, f32& m
 // SAT collision detection - if there's a gap between two shapes, they don't collide.
 // To find if there's a gap, first get the normals of each edge of each sprite.
 // Then, project each shape on the axis, and test the min/max of the projections for overlap.
-bool test_collision(c_display& a_dpy, c_collision& a_col, c_display& b_dpy, c_collision& b_col) {
+bool test_collision(display& a_dpy, collision& a_col, display& b_dpy, collision& b_col) {
     std::vector<world_coords> normals;
     add_normals(a_dpy, a_col, normals);
     add_normals(b_dpy, b_col, normals);
@@ -191,7 +191,7 @@ bool test_collision(c_display& a_dpy, c_collision& a_col, c_display& b_dpy, c_co
 
 
 
-c_mapdata::tile_data get_tiledata(c_mapdata& data, world_coords pos) {
+mapdata::tile_data get_tiledata(mapdata& data, world_coords pos) {
     world_coords trunc_pos(trunc(pos.x), trunc(pos.y));
 
     int tile_index =  trunc_pos.x + ( trunc_pos.y * data.size.x);
@@ -199,7 +199,7 @@ c_mapdata::tile_data get_tiledata(c_mapdata& data, world_coords pos) {
 }
 
 
-bool map_collision (c_display& spr, c_mapdata& data, u8 type) {
+bool map_collision (display& spr, mapdata& data, u8 type) {
     /*for (auto vertex : spr.vertices()) {
         // get the decimal part, then divide it by 0.50 to determine which half it's in, then floor to get an int
 
@@ -219,21 +219,21 @@ cant wait to be 6.9
     return false;
 }
 
-void system_collison_run(pool<c_collision>& collisions, pool<c_display>& sprites, c_mapdata& data) {
+void system_collison_run(pool<collision>& collisions, pool<display>& sprites, mapdata& data) {
     for (auto col_a : collisions) {
-        c_display& spr_a = sprites.get(col_a.parent);
+        display& spr_a = sprites.get(col_a.parent);
         //if (map_collision(spr_a, data, col_a.get_tilemap_collision())) { col_a.on_collide(data.parent); }
         u8 a_sig = col_a.get_team_signals();
         u8 a_dec = col_a.get_team_detectors();
 
-        auto col_it = pool<c_collision>::iterator(col_a.parent + 1, &collisions);
+        auto col_it = pool<collision>::iterator(col_a.parent + 1, &collisions);
         for (; col_it != collisions.end(); ++col_it) {
             auto col_b = *col_it;
             u8 b_sig = col_b.get_team_signals();
             u8 b_dec = col_b.get_team_detectors();
             if (((a_sig & b_dec) == 0) && ((b_sig & a_dec) == 0)) continue;
 
-            c_display& spr_b = sprites.get(col_b.parent);
+            display& spr_b = sprites.get(col_b.parent);
             if (test_collision(spr_a, col_a, spr_b, col_b)) {
                 col_b.on_collide(col_a.parent);
                 col_a.on_collide(col_b.parent);
@@ -246,7 +246,7 @@ void system_collison_run(pool<c_collision>& collisions, pool<c_display>& sprites
 //     S_HEALTH     //
 //////////////////////
 
-void s_health::run(pool<c_health>& healths, pool<c_damage>& damages, entity_manager& entities) {
+void s_health::run(pool<health>& healths, pool<damage>& damages, entity_manager& entities) {
     for(auto& damage : damages) {
         if (damage.enemy_ID == 65535) continue;
         entity enemy = damage.enemy_ID;
@@ -299,7 +299,7 @@ void s_health::set_entry(u32 index, f32 val) {
     }
 }
 
-void s_health::update_healthbars(pool<c_health>& healths, pool<c_display>& sprites) {
+void s_health::update_healthbars(pool<health>& healths, pool<display>& sprites) {
     size_t new_atlassize = 0;
 
     for (auto& health : healths) {
@@ -322,7 +322,7 @@ void s_health::update_healthbars(pool<c_health>& healths, pool<c_display>& sprit
         if (health.has_healthbar == false) continue;
         healthbar_atlas_indices[health.parent] = index;
 
-        c_display& spr = sprites.get(health.parent);
+        display& spr = sprites.get(health.parent);
         u32& sprite_index = healthbar_sprite_indices[health.parent];
 
         // This is a new healthbar, not yet hooked up to a sprite
@@ -348,10 +348,10 @@ void s_health::update_healthbars(pool<c_health>& healths, pool<c_display>& sprit
 //     S_PROXINTERACT     //
 ////////////////////////////
 
-bool test_proximity_collision(c_proximity& c, c_display& spr) {
-    if(c.shape == c_proximity::shape::rectangle)
+bool test_proximity_collision(proximity& c, display& spr) {
+    if(c.shape == proximity::shape::rectangle)
         return AABB_collision(rect<f32>(c.origin, c.radii), spr.sprites(0).get_dimensions());
-    if(c.shape == c_proximity::shape::elipse) {
+    if(c.shape == proximity::shape::elipse) {
         world_coords p = spr.sprites(0).get_dimensions().center();
         f32 left_side = pow(p.x - c.origin.x, 2) / pow(c.radii.x, 2);
         f32 right_side = pow(p.y - c.origin.y, 2) / pow(c.radii.y, 2);
@@ -365,7 +365,7 @@ f32 distance(T a, T b) {
     return sqrt(pow(b.x - a.x, 2) + pow(b.y - a.y, 2));
 }
 
-void s_proxinteract::run(pool<c_proximity>& proximities, pool <c_widget>& widgets, c_display& player_spr) {
+void s_proxinteract::run(pool<proximity>& proximities, pool <widget>& widgets, display& player_spr) {
     f32 min = 1000;
     entity current_min = 65535;
     for(auto& proximity : proximities) {
@@ -387,9 +387,9 @@ void s_proxinteract::run(pool<c_proximity>& proximities, pool <c_widget>& widget
 //     MISC. SYSTEMS     //
 ///////////////////////////
 
-void system_velocity_run(pool<c_velocity>& velocities, pool<c_display>& sprites, int framerate_multiplier) {
+void system_velocity_run(pool<velocity>& velocities, pool<display>& sprites, int framerate_multiplier) {
     for (auto velocity : velocities) {
-        c_display& spr = sprites.get(velocity.parent);
+        display& spr = sprites.get(velocity.parent);
         sprite_coords new_velocity (velocity.delta.x / framerate_multiplier, velocity.delta.y / framerate_multiplier);
         for (auto& sprite : spr) {
             sprite.move_by(new_velocity);
@@ -398,13 +398,13 @@ void system_velocity_run(pool<c_velocity>& velocities, pool<c_display>& sprites,
 }//     SOFTWARE TEXTURE MANAGAER CODE     //
 
 
-void s_shooting::run(pool<c_display>& sprites, pool<c_weapon_pool> weapons, c_player& p) {
+void s_shooting::run(pool<display>& sprites, pool<weapon_pool> weapons, player& p) {
     auto& pool =  weapons.get(p.parent);
-    c_weapon_pool::weapon active = pool.weapons.get(pool.current);
+    weapon_pool::weapon active = pool.weapons.get(pool.current);
     if (p.shoot == true && active.t.elapsed<timer::ms>() > timer::ms(active.stats.cooldown)) {
         bullet& b = bullet_types[active.stats.bullet];
         shoot(b.tex, b.dimensions, b.speed, sprites.get(p.parent).get_dimensions().center(),
-                     p.target, c_collision::flags::ally);
+                     p.target, collision::flags::ally);
         active.t.start();
     }
     p.shoot = false;
@@ -597,7 +597,7 @@ std::string s_text::replace_locale_macro(std::string& text) {
     }
 }
 
-void s_text::run(pool<c_text>& texts, pool<c_display>& displays) {
+void s_text::run(pool<text>& texts, pool<display>& displays) {
     size<f32> atlas_size(0, 0);
     int num_text_entries = 0;
     for(auto& text : texts) {

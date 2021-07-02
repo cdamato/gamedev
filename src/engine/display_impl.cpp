@@ -22,7 +22,7 @@ constexpr unsigned zindex_buffer_size = quads_in_buffer * vertices_per_quad * si
 struct sdl_window : public window_impl {
     void set_resolution(screen_coords coords) { if (!_fullscreen) { SDL_SetWindowSize(window, coords.x, coords.y); } }
     void set_fullscreen(bool fullscreen_state) { SDL_SetWindowFullscreen(window, fullscreen_state ? SDL_WINDOW_FULLSCREEN_DESKTOP  : 0); }
-    bool poll_events();
+    std::vector<std::unique_ptr<input_event>> poll_events();
 protected:
     sdl_window(screen_coords resolution, int flags);
     ~sdl_window();
@@ -195,47 +195,47 @@ sdl_window::sdl_window(screen_coords resolution_in, int flags) {
     _resolution = window_size.to<u16>();
 }
 
-bool sdl_window::poll_events() {
+std::vector<std::unique_ptr<input_event>> sdl_window::poll_events() {
+    auto event_queue = std::vector<std::unique_ptr<input_event>>();
     SDL_Event event;
     while (SDL_PollEvent(&event) > 0) {
         switch (event.type) {
             case SDL_QUIT:
-                return false;
+                event_queue.emplace_back(std::make_unique<event_quit>());
+                break;
             case SDL_KEYUP:
             case SDL_KEYDOWN: {
                 if (event.key.repeat) break;
-                event_keypress e(event.key.keysym.sym, event.type == SDL_KEYUP);
-                event_callback(e);
+                event_queue.emplace_back(std::make_unique<event_keypress>(event.key.keysym.sym, event.type == SDL_KEYUP));
                 break;
             }
             case SDL_MOUSEBUTTONDOWN:
             case SDL_MOUSEBUTTONUP: {
-                event_mousebutton ev(screen_coords(event.button.x, event.button.y), event.type == SDL_MOUSEBUTTONUP);
-                event_callback(ev);
+                event_queue.emplace_back(std::make_unique<event_mousebutton>(screen_coords(event.button.x, event.button.y), event.type == SDL_MOUSEBUTTONUP));
                 break;
             }
             case SDL_MOUSEMOTION: {
-                event_cursor e(screen_coords(event.motion.x, event.motion.y));
-                event_callback(e);
+                event_queue.emplace_back(std::make_unique<event_cursor>(screen_coords(event.motion.x, event.motion.y)));
                 break;
             }
             case SDL_TEXTINPUT: {
-                event_textinput e(event.text.text);
-                event_callback(e);
+                event_queue.emplace_back(std::make_unique<event_textinput>(event.text.text));
                 break;
             }
             case SDL_WINDOWEVENT: {
                 switch (event.window.event) {
                     case SDL_WINDOWEVENT_RESIZED:
                     case SDL_WINDOWEVENT_SIZE_CHANGED:
-                        resize_callback(screen_coords(event.window.data1, event.window.data2));
+                        screen_coords new_res = screen_coords(event.window.data1, event.window.data2);
+                        _resolution = new_res;
+                        event_queue.emplace_back(std::make_unique<event_windowresize>(new_res));
                         break;
                 }
                 break;
             }
         }
     }
-    return true;
+    return event_queue;
 }
 
 //////////////////////////////////

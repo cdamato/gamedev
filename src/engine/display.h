@@ -58,7 +58,7 @@ private:
     [[no_unique_address]] no_move disable_move;
 public:
     virtual ~window_impl() {}
-    virtual bool poll_events() = 0;
+    virtual std::vector<std::unique_ptr<input_event>> poll_events() = 0;
     virtual void swap_buffers(renderer&) = 0;
     virtual void set_vsync(bool) = 0;
 
@@ -68,8 +68,6 @@ public:
     screen_coords resolution() { return _resolution; }
     bool fullscreen() { return _fullscreen; }
     bool renderer_busy() { return _renderer_busy; }
-
-    std::function<void(input_event&)> event_callback;
     std::function<void(screen_coords)> resize_callback;
 protected:
     bool update_resolution = true; // Update resolution internally on the next tick
@@ -86,11 +84,12 @@ public:
     };
     void initialize(display_types, screen_coords);
     void render();
+    std::vector<std::unique_ptr<input_event>> poll_events() { return get_window().poll_events(); }
 
     renderer& get_renderer() { return *_renderer.get(); }
-    window_impl& get_window() { return *_window.get(); }
     texture_manager& textures() { return *_textures.get(); }
 private:
+    window_impl& get_window() { return *_window.get(); }
     std::unique_ptr<renderer> _renderer;
     std::unique_ptr<window_impl> _window;
     std::unique_ptr<texture_manager> _textures;

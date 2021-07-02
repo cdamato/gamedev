@@ -21,7 +21,7 @@ void initialize_slider_group(entity e, entity parent, u8 z_index, engine& g, int
 
 void button_activation(entity e, engine& g);
 void button_navigation(entity e, engine& g, u32 new_index);
-void add_button(entity e, engine& g, point<f32> pos, size<f32> grid_size, u32 index, ecs::c_widget::activation_action function, std::string label);
+void add_button(entity e, engine& g, point<f32> pos, size<f32> grid_size, u32 index,  ecs::widget::activation_action function, std::string label);
 void initialize_button_group(entity e, entity parent, u8 z_index, engine& g, int num_buttons);
 
 
@@ -41,12 +41,12 @@ void add_textinput(entity e, entity parent, u8 z_index, engine& g, point<f32> po
 
 point<u16> get_gridindex(rect<f32> grid, size<u16> num_elements, point<f32> pos);
 
-void inv_transfer_init(entity e, engine& g, ecs::c_inventory&);
+void inv_transfer_init(entity e, engine& g,  ecs::inventory&);
 rect<f32> calc_size_percentages(rect<f32> parent, rect<f32> sizes );
 void make_widget(entity e, engine& g, entity parent);
 
 
-void inventory_init(entity, engine&, entity, ecs::c_inventory& inv, screen_coords);
+void inventory_init(entity, engine&, entity,  ecs::inventory& inv, screen_coords);
 void options_menu_init(entity, engine&, entity, screen_coords);
 
 

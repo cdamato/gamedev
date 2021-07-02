@@ -46,7 +46,7 @@ struct component {
 
 using sprite_id = u32;
 
-class c_display : public component {
+class display : public component {
 public:
 	rect <f32> get_dimensions();
 	sprite_id add_sprite(u16 num_quads, render_layers layer);
@@ -57,11 +57,11 @@ private:
 	std::vector <sprite_data> _sprites;
 };
 
-struct c_velocity : public component {
+struct velocity : public component {
 	sprite_coords delta;
 };
 
-struct c_collision : public component {
+struct collision : public component {
 	enum flags : u8 {
 		// damage teams
 		ally = 1,
@@ -85,7 +85,7 @@ private:
 	std::bitset<8> collision_flags;
 };
 
-struct c_proximity : public component {
+struct proximity : public component {
 	enum shape {
 		rectangle,
 		elipse
@@ -100,7 +100,7 @@ struct c_proximity : public component {
 //     UNIQUE COMPONENTS     //
 ///////////////////////////////
 
-struct c_mapdata : public component {
+struct mapdata : public component {
 	struct tile_data {
 		std::bitset<8> collision;
 
@@ -114,12 +114,12 @@ struct c_mapdata : public component {
 	std::vector <tile_data> tiledata_lookup;
 };
 
-struct c_player : public component {
+struct player : public component {
 	bool shoot = false;
 	world_coords target;
 };
 
-struct c_inventory : public component {
+struct inventory : public component {
 	struct item {
 		u32 ID = 0;
 		u32 quantity = 0;
@@ -132,7 +132,7 @@ struct c_inventory : public component {
 //     COMBAT COMPONENTS     //
 ///////////////////////////////
 
-struct c_weapon_pool : public component {
+struct weapon_pool : public component {
 	struct weapon {
 		enum bullet_types {
 			standard = 0,
@@ -150,13 +150,13 @@ struct c_weapon_pool : public component {
 	u8 current = 0;
 };
 
-struct c_health : public component {
+struct health : public component {
 	f32 health = 50;
 	f32 max_health = 50;
 	bool has_healthbar = false;
 };
 
-struct c_damage : public component {
+struct damage : public component {
 	entity enemy_ID = 65535;
 	int damage;
 };
@@ -165,13 +165,13 @@ struct c_damage : public component {
 //     AI/ENEMY Components     //
 /////////////////////////////////
 
-struct c_enemy : public component {	};
+struct enemy : public component {	};
 
 /////////////////////////////////
 //     UI/EVENT COMPONENTS     //
 /////////////////////////////////
 
-struct c_widget : public component {
+struct widget : public component {
 	entity parent = 65535;
 	bool accepts_textinput = false;
 	std::vector <entity> children;
@@ -184,7 +184,7 @@ struct c_widget : public component {
     hover_action on_hover = nullptr;
 };
 
-struct c_text : public component {
+struct text : public component {
 	struct text_entry {
 		u8 quad_index = 0;
 		std::string text = "";
@@ -196,7 +196,7 @@ struct c_text : public component {
 };
 
 // Represents a navigable grid of smaller components of the same type. For widgets using this, the first sprite must be the container.
-struct c_selection : public component {
+struct selection : public component {
 	point <u16> active {};
 	point <u16> highlight {};
 	size <u16> grid_size {};
@@ -207,13 +207,13 @@ struct c_selection : public component {
     u32 highlight_index() { return highlight.x + (highlight.y * grid_size.x); }
 };
 
-struct c_checkbox : public component {
+struct checkbox : public component {
 	std::bitset<8> checked;
 	int sprite_index;
 };
 
 // Stores data for 4 sliders
-struct c_slider : public component {
+struct slider : public component {
 	std::array<int, 4> min_values;
 	std::array<int, 4> current_values;
 	std::array<int, 4> max_values;
@@ -221,12 +221,12 @@ struct c_slider : public component {
 };
 
 // Stores data for 4 button
-struct c_button : public component {
-    std::array<c_widget::activation_action, 4> callbacks;
+struct button : public component {
+    std::array<widget::activation_action, 4> callbacks;
     int sprite_index;
 };
 
-struct c_dropdown : public component {
+struct dropdown : public component {
 	struct dropdown_data {
 		std::vector<std::string> entries;
 		int active;
@@ -246,11 +246,11 @@ template<typename T>
 struct type_tag {};
 
 #define ALL_COMPONENTS(m)\
-    m(c_display) m(c_collision) m(c_velocity) m(c_proximity)\
-    m(c_health) m(c_damage) m(c_weapon_pool) \
-    m(c_enemy)\
-    m(c_player) m(c_inventory) m(c_mapdata)\
-    m(c_widget) m(c_selection) m(c_text) m(c_checkbox) m(c_slider) m(c_button) m(c_dropdown)\
+    m(display) m(collision) m(velocity) m(proximity)\
+    m(health) m(damage) m(weapon_pool) \
+    m(enemy)\
+    m(player) m(inventory) m(mapdata)\
+    m(widget) m(selection) m(text) m(checkbox) m(slider) m(button) m(dropdown)\
 
 #define POOL_NAME(T) T ## _pool
 #define GENERATE_ACCESS_FUNCTIONS(T) constexpr pool<T>& get_pool(type_tag<T>) { return POOL_NAME(T); }
@@ -276,7 +276,7 @@ private:
 ////////////////////////////
 
 struct s_shooting {
-	using bullet_func = std::function<void(std::string, world_coords, world_coords, world_coords, world_coords, c_collision::flags)>;
+	using bullet_func = std::function<void(std::string, world_coords, world_coords, world_coords, world_coords, collision::flags)>;
 	struct bullet {
 		world_coords dimensions;
 		world_coords speed;
@@ -286,13 +286,13 @@ struct s_shooting {
 	std::vector <bullet> bullet_types;
 	bullet_func shoot;
 
-	void run(pool<c_display>&, pool<c_weapon_pool>, c_player&);
+	void run(pool<display>&, pool<weapon_pool>, player&);
 };
 
 struct s_health : public texture_generator {
 public:
-	void run(pool<c_health>&, pool<c_damage>&, entity_manager&);
-	void update_healthbars(pool<c_health>&, pool<c_display>&);
+	void run(pool<health>&, pool<damage>&, entity_manager&);
+	void update_healthbars(pool<health>&, pool<display>&);
 private:
 	void set_entry(u32, f32);
 
@@ -307,7 +307,7 @@ private:
 struct s_text : public texture_generator {
 public:
 	s_text();
-	void run(pool<c_text>&, pool<c_display>&);
+	void run(pool<text>&, pool<display>&);
 
     screen_coords get_text_size(std::string&);
     size_t character_at_position(std::string text, screen_coords pos);
@@ -323,14 +323,14 @@ private:
 	impl* data;
 };
 
-void system_collison_run(pool<c_collision>&, pool<c_display>&, c_mapdata&);
-void system_velocity_run(pool<c_velocity>&, pool<c_display>&, int);
+void system_collison_run(pool<collision>&, pool<display>&, mapdata&);
+void system_velocity_run(pool<velocity>&, pool<display>&, int);
 
 // Combine proximity detectors and keypresses to allow us to "interact" with world entities
 class s_proxinteract {
 public:
 	entity active_interact = 65535;
-	void run(pool<c_proximity>&, pool<c_widget>&, c_display&);
+	void run(pool<proximity>&, pool<widget>&, display&);
 };
 
 ////////////////////////////
