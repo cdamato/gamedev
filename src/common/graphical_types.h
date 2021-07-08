@@ -81,8 +81,10 @@ struct sprite_data {
     u8 z_index = 1;
     render_layers layer;
 
-    sprite_data(size_t num_quads, render_layers layer_in) {
+    sprite_data(size_t num_quads, texture * tex_in, int z_index_in, render_layers layer_in) {
         _vertices = std::vector<vertex>(num_quads * vertices_per_quad);
+        tex = tex_in;
+        z_index = z_index_in;
         layer = layer_in;
     }
 

@@ -48,8 +48,8 @@ using sprite_id = u32;
 
 class display : public component {
 public:
-	rect <f32> get_dimensions();
-	sprite_id add_sprite(u16 num_quads, render_layers layer);
+	rect<f32> get_dimensions();
+	sprite_id add_sprite(u16 num_quads, texture* tex, u16 z_index, render_layers layer);
 	sprite_data& sprites(size_t index) { return _sprites[index]; }
 	std::vector<sprite_data>::iterator begin() { return _sprites.begin(); }
 	std::vector<sprite_data>::iterator end() { return _sprites.end(); }
@@ -197,9 +197,9 @@ struct text : public component {
 
 // Represents a navigable grid of smaller components of the same type. For widgets using this, the first sprite must be the container.
 struct selection : public component {
-	point <u16> active {};
-	point <u16> highlight {};
-	size <u16> grid_size {};
+	point<u16> active {65535, 65535};
+	point<u16> highlight {65535, 65535};
+	size<u16> grid_size {65535, 65535};
     u32 sprite_index;
 
 	u32 num_elements() { return grid_size.x * grid_size.y; }

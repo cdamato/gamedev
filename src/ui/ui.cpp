@@ -53,7 +53,15 @@ int cursorpos_to_navindex(entity e, engine& g, sprite_coords ev_pos) {
     int focus_index = project_to_1D(cursor_focus, select.grid_size.x);
 
     if (g.ecs.exists<ecs::checkbox>(e)) {
-        return focus_index;
+        auto& checkbox = g.ecs.get<ecs::checkbox>(e);
+        auto& select = g.ecs.get<ecs::selection>(e);
+        if (focus_index < select.num_elements()) {
+            if (test_collision(g.ecs.get<ecs::display>(e).sprites(checkbox.sprite_index).get_dimensions(focus_index), ev_pos)) {
+                return focus_index;
+            }
+        } else {
+            return 65535;
+        }
     } else if (g.ecs.exists<ecs::slider>(e)) {
         if (g.ui.cursor == e) {
             return ev_pos.x;
@@ -66,9 +74,9 @@ int cursorpos_to_navindex(entity e, engine& g, sprite_coords ev_pos) {
         if (focus_index < select.num_elements()) {
             if (test_collision(g.ecs.get<ecs::display>(e).sprites(button.sprite_index).get_dimensions(focus_index), ev_pos)) {
                 return focus_index;
-            } else {
-                return 65535;
             }
+        } else {
+            return 65535;
         }
     } else if (g.ecs.exists<ecs::dropdown>(e)) {
         auto& dropdown = g.ecs.get<ecs::dropdown>(e);
@@ -100,8 +108,10 @@ bool send_navevent(entity e, engine& g, int new_index) {
         }
     } else if (g.ecs.exists<ecs::button>(e)) {
         button_navigation(e, g, new_index);
+        selectiongrid_navigation(e, g, new_index);
     } else if (g.ecs.exists<ecs::dropdown>(e)) {
         dropdown_navigation(e, g, new_index);
+        selectiongrid_navigation(e, g, new_index);
     } else {
         if (w.on_navigate != nullptr)
             w.on_navigate(e, g, new_index);

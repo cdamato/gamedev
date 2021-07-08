@@ -98,15 +98,11 @@ void set_map(engine& game, world_coords dimensions, std::vector<u8> tiles) {
 	entity e = game.map_id();
 
     game.ecs.remove<ecs::display>(e);
-	 ecs::display& spr = game.ecs.add<ecs::display>(e);
-
-	 ecs::mapdata& mapdata = game.ecs.get<ecs::mapdata>(e);
-
+    ecs::display& spr = game.ecs.add<ecs::display>(e);
+    ecs::mapdata& mapdata = game.ecs.get<ecs::mapdata>(e);
     set_tilecollison_lookup(mapdata);
 
-	spr.add_sprite(tiles.size(), render_layers::sprites);
-	spr.sprites(0).tex = game.textures().get("tilemap");
-	spr.sprites(0).z_index = 0;
+	spr.add_sprite(tiles.size(), game.textures().get("tilemap"), 0, render_layers::sprites);
 
 	size_t index = 0;
 	u8 tile_type = 0;
@@ -118,7 +114,6 @@ void set_map(engine& game, world_coords dimensions, std::vector<u8> tiles) {
 		spr.sprites(0).set_pos(sprite_coords(pos_x, pos_y), sprite_coords(1, 1), index);
 		spr.sprites(0).set_tex_region(tex_index, index);
 		index++;
-
 	};
 
 	int neighbors[8] = {tile_type};
@@ -181,12 +176,8 @@ void set_map(engine& game, world_coords dimensions, std::vector<u8> tiles) {
 }
 
 void gen_obstaclething(entity e, engine& game, world_coords pos) {
-
-	 ecs::display& spr = game.ecs.add<ecs::display>(e);
-	//spr->init(1);
-	spr.add_sprite(1, render_layers::sprites);
-	spr.sprites(0).tex = game.textures().get("crate");
-
+	ecs::display& spr = game.ecs.add<ecs::display>(e);
+	spr.add_sprite(1, game.textures().get("crate"), 3, render_layers::sprites);
 	spr.sprites(0).set_pos(pos, sprite_coords(1, 1), 0);
 	spr.sprites(0).set_tex_region(0, 0);
 }

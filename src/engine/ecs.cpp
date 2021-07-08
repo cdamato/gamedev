@@ -98,8 +98,8 @@ void mapdata::tile_data::set_data(u8 quad_index, u8 type) {
     collision |= aa;
 }
 
-u32 display::add_sprite(u16 num_quads, render_layers layer) {
-    _sprites.push_back(sprite_data(num_quads, layer));
+u32 display::add_sprite(u16 num_quads, texture* tex, u16 z_index, render_layers layer) {
+    _sprites.push_back(sprite_data(num_quads, tex, z_index, layer));
     return _sprites.size() - 1;
 }
 
@@ -328,8 +328,7 @@ void s_health::update_healthbars(pool<health>& healths, pool<display>& sprites) 
         // This is a new healthbar, not yet hooked up to a sprite
         if (healthbar_sprite_indices[health.parent] == 0) {
             sprite_coords tl = spr.get_dimensions().bottom_left() + sprite_coords(0, 0.1);
-            sprite_index = spr.add_sprite(1, render_layers::sprites);
-            spr.sprites(sprite_index).tex = tex;
+            sprite_index = spr.add_sprite(1, tex, 4, render_layers::sprites);
             size<f32> size(1, 0.25);
 
             spr.sprites(sprite_index).set_pos(tl, size, 0);

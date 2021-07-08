@@ -5,7 +5,7 @@
 void options_menu_init(entity e, engine& g, entity root, screen_coords pos_in) {
     make_widget(e, g, g.ui.root);
     auto& display = g.ecs.add<ecs::display>(e);
-    display.add_sprite(1, render_layers::ui);
+    display.add_sprite(1, g.textures().get("menu_background"), 4, render_layers::ui);
 
     sprite_coords pos = pos_in.to<f32>();
     sprite_coords label_fullscreen_size = g.get_text_size("GRAPHICSMENU_FULLSCREEN_CONTROL");
@@ -46,7 +46,6 @@ void options_menu_init(entity e, engine& g, entity root, screen_coords pos_in) {
     add_dropdown(dropdowns, g, pos, sprite_coords(largest_x, max_option_size.y), widget_pos, max_option_size, 1, renderer_options, "GRAPHICSMENU_RENDERER_CONTROL", 0);
 
     display.sprites(0).set_pos(pos_in.to<f32>(), widget_pos + max_option_size, 0);
-    display.sprites(0).tex = g.textures().get("menu_background");
 }
 /*
 void options_menu_init(entity e, engine& g, entity root, screen_coords pos) {

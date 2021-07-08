@@ -1,73 +1,102 @@
 #include "ui.h"
 
+//////////////////////////////
+//     HELPER FUNCTIONS     //
+//////////////////////////////
+
+int get_threestage_texregion(entity e, engine& g, int element_index, bool enter) {
+    // Calculate the proper texture region based off of the element's active states
+    return (enter ? 1 : 0) + ((g.ecs.get<ecs::selection>(e).active_index() == element_index) ? 1 : 0);
+}
+
+void threestage_navigation(entity e, engine& g, int sprite_index, u32 new_index) {
+    auto& select = g.ecs.get<ecs::selection>(e);
+    auto& display = g.ecs.get<ecs::display>(e);
+    if (select.highlight_index() < select.num_elements()) {
+        display.sprites(sprite_index).set_tex_region(get_threestage_texregion(e, g, select.highlight_index(), false), select.highlight_index());
+    }
+    if (new_index < select.num_elements()) {
+        if (select.active_index() >= select.num_elements() || select.active_index() == new_index) {
+            display.sprites(sprite_index).set_tex_region(get_threestage_texregion(e, g, new_index, true), new_index);
+        }
+    }
+}
+
+void initialize_widget_group(entity e, engine& g, entity parent, int num_elements, ecs::widget::navigation_action nav_action, ecs::widget::activation_action act_action) {
+    make_widget(e, g, parent);
+    auto& widget = g.ecs.get<ecs::widget>(e);
+    auto& selection = g.ecs.add<ecs::selection>(e);
+    widget.on_navigate = nav_action;
+    widget.on_activate = act_action;
+    selection.grid_size = size<u16>(1, num_elements);
+    selection.active = point<u16>(65535, 65535);
+}
+
+using func_thing =  void (*)(entity, engine&, int);
+void clickable_activation(entity e, engine& g, bool release, int sprite_index, func_thing on_trigger) {
+    auto &select = g.ecs.get<ecs::selection>(e);
+    auto &display = g.ecs.get<ecs::display>(e);;
+    if (release) {
+        if (select.active_index() < select.num_elements())
+            display.sprites(sprite_index).set_tex_region(0, select.active_index());
+        on_trigger(e, g, select.active_index());
+    } else {
+        select.active = select.highlight;
+        display.sprites(sprite_index).set_tex_region(2, select.active_index());
+    }
+}
+
 ///////////////////////////
 //     CHECKBOX CODE     //
 ///////////////////////////
 
-void optionmenu_activation(entity e, engine& g, bool release) {
-    if (release) return;
+void checkbox_set_check(entity e, engine& g, int index) {
     auto& select = g.ecs.get<ecs::selection>(e);
     auto& checkbox = g.ecs.get<ecs::checkbox>(e);
-    auto& dpy = g.ecs.get<ecs::display>(e);
-    checkbox.checked.flip(select.highlight_index());
-    int new_tex_region = checkbox.checked.test(select.highlight_index()) ? 3 : 2;
-    dpy.sprites(checkbox.sprite_index).set_tex_region(new_tex_region, select.highlight_index());
-}
-
-void checkbox_set_highlight(entity e, engine& g, int index, bool enter) {
-    auto& checkbox = g.ecs.get<ecs::checkbox>(e);
-    int activated = (checkbox.checked.test(index) ? 1 : 0) + (enter ? 2 : 0);
-    g.ecs.get<ecs::display>(e).sprites(checkbox.sprite_index).set_tex_region(activated, index);
+    if (select.active == select.highlight) {
+        checkbox.checked.flip(index);
+        int new_tex_region = checkbox.checked.test(index) ? 3 : 4;
+        g.ecs.get<ecs::display>(e).sprites(checkbox.sprite_index + 1).set_tex_region(new_tex_region, index);
+    }
+    select.active = point<u16>(65535, 65535);
 }
 
 void checkbox_navigation(entity e, engine& g, u32 new_index) {
-    auto& select = g.ecs.get<ecs::selection>(e);
-    if (select.highlight_index() < select.num_elements()) {
-        checkbox_set_highlight(e, g, select.highlight_index(), false);
-    }
-    if (new_index < select.num_elements()) {
-        checkbox_set_highlight(e, g, new_index, true);
-    }
+    threestage_navigation(e, g, g.ecs.get<ecs::checkbox>(e).sprite_index, new_index);
+}
+
+void checkbox_activation(entity e, engine& g, bool release) {
+    clickable_activation(e, g, release, g.ecs.get<ecs::checkbox>(e).sprite_index, checkbox_set_check);
 }
 
 void add_checkbox(entity e, engine& g, point<f32> text_pos, size<f32> grid_size, point<f32> checkbox_pos, u32 index, bool state, std::string label) {
     auto& display = g.ecs.get<ecs::display>(e);
+    auto& select = g.ecs.get<ecs::selection>(e);
     display.sprites(0).set_pos(text_pos, sprite_coords(checkbox_pos.x + grid_size.y, grid_size.y) - sprite_coords(text_pos.x, 0), index);
     display.sprites(0).set_tex_region(0, index);
 
-    text_pos.x *= 1.05;
     auto& checkbox = g.ecs.get<ecs::checkbox>(e);
     checkbox.checked[index] = state;
     display.sprites(checkbox.sprite_index).set_pos(checkbox_pos, sprite_coords(grid_size.y, grid_size.y), index);
-    display.sprites(checkbox.sprite_index).set_tex_region(state == true ? 1 : 0, index);
+    display.sprites(checkbox.sprite_index + 1).set_pos(checkbox_pos, sprite_coords(grid_size.y, grid_size.y), index);
+    display.sprites(checkbox.sprite_index).set_tex_region(0, index);
+    display.sprites(checkbox.sprite_index + 1).set_tex_region(state ? 3 : 4, index);
 
     auto& text = g.ecs.get<ecs::text>(e);
-
     sprite_coords label_size = g.get_text_size(label);
     display.sprites(text.sprite_index).set_pos(text_pos + sprite_coords(0, grid_size.y - label_size.y) / 2, grid_size, index);
     text.text_entries.push_back( ecs::text::text_entry{index, label});
 }
 
 void initialize_checkbox_group(entity e, entity parent, u8 z_index, engine& g, u32 num_checkboxes) {
-    make_widget(e, g, parent);
-    auto& widget = g.ecs.get<ecs::widget>(e);
-    widget.on_activate = optionmenu_activation;
-    widget.on_navigate = checkbox_navigation;
-
-    g.ecs.add<ecs::selection>(e).grid_size = size<u16>(1, num_checkboxes);
-
+    initialize_widget_group(e, g, parent, num_checkboxes, checkbox_navigation, checkbox_activation);
     auto& display = g.ecs.add<ecs::display>(e);
-    display.add_sprite(num_checkboxes, render_layers::ui);
-    display.sprites(0).tex = g.textures().get("menu_background");
-
+    display.add_sprite(num_checkboxes * 2, g.textures().get("menu_background"), z_index, render_layers::ui);
     auto& text = g.ecs.add<ecs::text>(e);
-    text.sprite_index = display.add_sprite(num_checkboxes, render_layers::ui);;
-
-    int checkbox_sprite_index = display.add_sprite(num_checkboxes, render_layers::ui);
+    text.sprite_index = display.add_sprite(num_checkboxes, nullptr, 0, render_layers::ui);;
     auto& checkbox = g.ecs.add<ecs::checkbox>(e);
-    checkbox.sprite_index = checkbox_sprite_index;
-    display.sprites(checkbox_sprite_index).tex = g.textures().get("checkbox");
-    display.sprites(checkbox.sprite_index).z_index = z_index;
+    checkbox.sprite_index = display.add_sprite(num_checkboxes, g.textures().get("checkbox"), z_index + 1, render_layers::ui);
+    display.add_sprite(num_checkboxes, g.textures().get("checkbox"), z_index + 2, render_layers::ui);
 }
 
 /////////////////////////
@@ -125,64 +154,35 @@ void add_slider(entity e, engine& g, point<f32> pos, size<f32> grid_size, u32 in
     text.text_entries.push_back( ecs::text::text_entry{index, label});
 }
 
+
 void initialize_slider_group(entity e, entity parent, u8 z_index, engine& g, int num_sliders) {
-    make_widget(e, g, parent);
-    auto& widget = g.ecs.get<ecs::widget>(e);
-    widget.on_navigate = slider_navigation;
-    g.ecs.add<ecs::selection>(e).grid_size = size<u16>(1, num_sliders);
-
+    initialize_widget_group(e, g, parent, num_sliders, slider_navigation, nullptr);
     auto& display = g.ecs.add<ecs::display>(e);
-    display.add_sprite(num_sliders, render_layers::ui);
-    display.sprites(0).tex = g.textures().get("menu_background");
-
-    display.add_sprite(num_sliders * 2, render_layers::ui);
-    display.sprites(1).tex = g.textures().get("slider");
+    display.add_sprite(num_sliders, g.textures().get("menu_background"), z_index, render_layers::ui);
     g.ecs.add<ecs::slider>(e);
-
+    display.add_sprite(num_sliders * 2, g.textures().get("slider"), z_index, render_layers::ui);
     auto& text = g.ecs.add<ecs::text>(e);
-    text.sprite_index = display.add_sprite(num_sliders, render_layers::ui);
+    text.sprite_index = display.add_sprite(num_sliders, nullptr, 0, render_layers::ui);
 }
 
 /////////////////////////
 //     BUTTON CODE     //
 /////////////////////////
 
-void button_activation(entity e, engine& g, bool release) {
-    auto& buttons = g.ecs.get<ecs::button>(e);
-    auto& select = g.ecs.get<ecs::selection>(e);
-    int active_index = select.active_index();
-    if (release && select.active_index() < select.num_elements()) {
-        if (select.active_index() == select.highlight_index()) {
-            buttons.callbacks[active_index](e, g, release);
-        }
-        g.ecs.get<ecs::display>(e).sprites(buttons.sprite_index).set_tex_region(0, select.active_index());
-        select.active = point<u16>(65535, 65535);
-    } else if (release == false && select.highlight_index() < select.num_elements()) {
-        g.ecs.get<ecs::display>(e).sprites(buttons.sprite_index).set_tex_region(2,  select.highlight_index());
-        select.active = select.highlight;
+void call_button_action(entity e, engine& g, int index) {
+    auto& selection = g.ecs.get<ecs::selection>(e);
+    if (selection.active == selection.highlight) {
+        g.ecs.get<ecs::button>(e).callbacks[index](e, g, true);
     }
+    selection.active = point<u16>(65535, 65535);
+}
+
+void button_activation(entity e, engine& g, bool release) {
+    clickable_activation(e, g, release, g.ecs.get<ecs::button>(e).sprite_index, call_button_action);
 }
 
 void button_navigation(entity e, engine& g,u32 new_index) {
-    auto& select = g.ecs.get<ecs::selection>(e);
-    auto& buttons = g.ecs.get<ecs::button>(e);
-
-
-    if (select.highlight_index() < select.num_elements()) {
-        if (select.highlight_index() != select.active_index()) {
-            g.ecs.get<ecs::display>(e).sprites(buttons.sprite_index).set_tex_region(0, select.highlight_index());
-        }
-    }
-    if (new_index < select.num_elements()) {
-        if (new_index != select.active_index()) {
-            g.ecs.get<ecs::display>(e).sprites(buttons.sprite_index).set_tex_region(1, new_index);
-        } else {
-            g.ecs.get<ecs::display>(e).sprites(buttons.sprite_index).set_tex_region(2, new_index);
-        }
-    } else if (select.active_index() < select.num_elements()) {
-        g.ecs.get<ecs::display>(e).sprites(buttons.sprite_index).set_tex_region(1, select.active_index());
-    }
-    select.highlight = project_to_2D<u16>(new_index, select.grid_size.x);
+    threestage_navigation(e, g, g.ecs.get<ecs::button>(e).sprite_index, new_index);
 }
 
 void add_button(entity e, engine& g, point<f32> pos, size<f32> grid_size, u32 index,  ecs::widget::activation_action func, std::string label) {
@@ -202,25 +202,14 @@ void add_button(entity e, engine& g, point<f32> pos, size<f32> grid_size, u32 in
 }
 
 void initialize_button_group(entity e, entity parent, u8 z_index, engine& g, int num_buttons) {
-    make_widget(e, g, parent);
-    auto& widget = g.ecs.get<ecs::widget>(e);
-    widget.on_navigate = button_navigation;
-    widget.on_activate = button_activation;
-    g.ecs.add<ecs::selection>(e).grid_size = size<u16>(1, num_buttons);
-    g.ecs.get<ecs::selection>(e).active = point<u16>(65535, 65535);
+    initialize_widget_group(e, g, parent, num_buttons, button_navigation, button_activation);
 
     auto& display = g.ecs.add<ecs::display>(e);
-    display.add_sprite(num_buttons, render_layers::ui);
-    display.sprites(0).tex = g.textures().get("menu_background");
-    display.sprites(0).z_index = z_index;
-
+    display.add_sprite(num_buttons, g.textures().get("menu_background"), z_index, render_layers::ui);
     auto& button = g.ecs.add<ecs::button>(e);
-    button.sprite_index = display.add_sprite(num_buttons, render_layers::ui);
-    display.sprites(button.sprite_index).tex = g.textures().get("button");
-    display.sprites(button.sprite_index).z_index = z_index + 2;
-
+    button.sprite_index = display.add_sprite(num_buttons, g.textures().get("button"), z_index + 2, render_layers::ui);
     auto& text = g.ecs.add<ecs::text>(e);
-    text.sprite_index = display.add_sprite(num_buttons, render_layers::ui);
+    text.sprite_index = display.add_sprite(num_buttons, nullptr, 0, render_layers::ui);
 }
 
 ///////////////////////////
@@ -236,7 +225,6 @@ void dropdown_set_option(entity e, engine& g, int index) {
         text.text_entries[text_index].text = dropdown.dropdowns[select.active_index()].entries[index];
         text.text_entries[text_index].regen = true;
     }
-
 }
 
 void destroy_menu_expansion(entity e, engine& g) {
@@ -268,43 +256,30 @@ void open_dropdown(entity e, engine& g, entity parent, rect<f32> box,  ecs::drop
     }
 }
 
-void dropdown_activation(entity e, engine& g, bool release) {
-    auto& dropdown = g.ecs.get<ecs::dropdown>(e);
-    auto& select = g.ecs.get<ecs::selection>(e);
-    int active_index = select.active_index();
-    if (release && select.active_index() < select.num_elements()) {
-        sprite_data& dropdown_sprite = g.ecs.get<ecs::display>(e).sprites(dropdown.sprite_index);
-        dropdown_sprite.set_tex_region(0, select.active_index());
-        auto& widget = g.ecs.get<ecs::widget>(e);
-        if (select.active_index() == select.highlight_index() && widget.children.empty()) {
-            entity child = g.create_entity(open_dropdown, e, dropdown_sprite.get_dimensions(select.active_index()), dropdown.dropdowns[select.active_index()]);
-            rect<f32> dropdown_rect = dropdown_sprite.get_dimensions(select.active_index());
-            g.ecs.get<ecs::display>(e).sprites(0).set_pos
-                (dropdown_rect.origin, dropdown_rect.size + g.ecs.get<ecs::display>(child).sprites(0).get_dimensions().size, select.active_index());
-        } else {
-            destroy_menu_expansion(*widget.children.begin(), g);
-            select.active = point<u16>(65535, 65535);
+void dropdown_on_trigger(entity e, engine& g, int element_index) {
+    auto& dropdown =  g.ecs.get<ecs::dropdown>(e);
+    auto& selection =  g.ecs.get<ecs::selection>(e);
+    sprite_data& dropdown_sprite = g.ecs.get<ecs::display>(e).sprites(dropdown.sprite_index);
+    dropdown_sprite.set_tex_region(0, selection.active_index());
+    auto& widget = g.ecs.get<ecs::widget>(e);
+    if (widget.children.empty()) {
+        if (selection.active_index() == selection.highlight_index()) {
+            rect <f32> dropdown_rect = dropdown_sprite.get_dimensions(element_index);
+            entity child = g.create_entity(open_dropdown, e, dropdown_rect, dropdown.dropdowns[element_index]);
+            g.ecs.get<ecs::display>(e).sprites(0).set_pos(dropdown_rect.origin,
+                    dropdown_rect.size + g.ecs.get<ecs::display>(child).sprites(0).get_dimensions().size, selection.active_index());
         }
-    } else if (release == false && select.highlight_index() < select.num_elements()) {
-        g.ecs.get<ecs::display>(e).sprites(dropdown.sprite_index).set_tex_region(2,  select.highlight_index());
-        select.active = select.highlight;
+    } else {
+        destroy_menu_expansion(*widget.children.begin(), g);
     }
 }
 
+void dropdown_activation(entity e, engine& g, bool release) {
+    clickable_activation(e, g, release, g.ecs.get<ecs::dropdown>(e).sprite_index, dropdown_on_trigger);
+}
+
 void dropdown_navigation(entity e, engine& g, u32 new_index) {
-    auto& select = g.ecs.get<ecs::selection>(e);
-    auto& dropdown = g.ecs.get<ecs::dropdown>(e);
-    if (select.highlight_index() < select.num_elements()) {
-        if (select.highlight_index() != select.active_index()) {
-            g.ecs.get<ecs::display>(e).sprites(dropdown.sprite_index).set_tex_region(0, select.highlight_index());
-        }
-    }
-    if (new_index < select.num_elements()) {
-        if (new_index != select.active_index()) {
-            g.ecs.get<ecs::display>(e).sprites(dropdown.sprite_index).set_tex_region(1, new_index);
-        }
-    }
-    select.highlight = project_to_2D<u16>(new_index, select.grid_size.x);
+    threestage_navigation(e, g, g.ecs.get<ecs::dropdown>(e).sprite_index, new_index);
 }
 
 void add_dropdown(entity e, engine& g, point<f32> pos, size<f32> grid_size, point<f32> box_pos, size<f32> box_size,
@@ -331,25 +306,14 @@ void add_dropdown(entity e, engine& g, point<f32> pos, size<f32> grid_size, poin
 }
 
 void initialize_dropdown_group(entity e, entity parent, u8 z_index, engine& g, int num_dropdowns) {
-    make_widget(e, g, parent);
-    auto& widget = g.ecs.get<ecs::widget>(e);
-    widget.on_navigate = dropdown_navigation;
-    widget.on_activate = dropdown_activation;
-    g.ecs.add<ecs::selection>(e).grid_size = size<u16>(1, num_dropdowns);
-    g.ecs.get<ecs::selection>(e).active = point<u16>(65535, 65535);
+    initialize_widget_group(e, g, parent, num_dropdowns, dropdown_navigation, dropdown_activation);
 
     auto& display = g.ecs.add<ecs::display>(e);
-    display.add_sprite(num_dropdowns, render_layers::ui);
-    display.sprites(0).tex = g.textures().get("menu_background");
-    display.sprites(0).z_index = z_index;
-
+    display.add_sprite(num_dropdowns, g.textures().get("menu_background"), z_index, render_layers::ui);
     auto& dropdown = g.ecs.add<ecs::dropdown>(e);
-    dropdown.sprite_index = display.add_sprite(num_dropdowns, render_layers::ui);
-    display.sprites(dropdown.sprite_index).tex = g.textures().get("button");
-    display.sprites(dropdown.sprite_index).z_index = z_index + 1;
-
+    dropdown.sprite_index = display.add_sprite(num_dropdowns, g.textures().get("button"), z_index + 1, render_layers::ui);
     auto& text = g.ecs.add<ecs::text>(e);
-    text.sprite_index = display.add_sprite(num_dropdowns * 2, render_layers::ui);
+    text.sprite_index = display.add_sprite(num_dropdowns * 2, nullptr, 0, render_layers::ui);
 }
 
 ////////////////////////////
@@ -362,12 +326,6 @@ void selectiongrid_set_highlight(entity e, engine& g, u32 index, bool enter) {
 
 void selectiongrid_navigation(entity e, engine& g, u32 new_index) {
     auto& select = g.ecs.get<ecs::selection>(e);
-    /*if (select.highlight_index() < select.num_elements()) {
-         selectiongrid_set_highlight(e, g, select.highlight_index(), false);
-    }
-    if (u32(new_index) < select.num_elements()) {
-        selectiongrid_set_highlight(e, g, new_index, true);
-    };*/
     select.highlight = project_to_2D<u16>(new_index, select.grid_size.x);
 }
 
@@ -432,34 +390,20 @@ void textinput_navigation(entity e, engine& g, u32 new_index) {
 //     - a single bool in the widget component stores whether a component supports text input
 //     - additionally, because of how text input works, clicking with the mouse redirects to a navigation action
 void add_textinput(entity e, entity parent, u8 z_index, engine& g, point<f32> pos, size<f32> grid_size) {
-    make_widget(e, g, parent);
-    g.ui.focus = e;
-    auto& widget = g.ecs.get<ecs::widget>(e);
-    widget.accepts_textinput = true;
-    widget.on_navigate = textinput_navigation;
-    auto& select = g.ecs.add<ecs::selection>(e);
+    initialize_widget_group(e, g, parent, 0, textinput_navigation, nullptr);
+    auto& select = g.ecs.get<ecs::selection>(e);
     select.grid_size = size<u16>(0, 1);
     select.highlight.x = 0;
 
     auto& display = g.ecs.add<ecs::display>(e);
-
-
-
-    display.add_sprite(1, render_layers::ui);
-    display.sprites(0).tex = g.textures().get("menu_background");
-    display.sprites(0).z_index = z_index;
+    display.add_sprite(1, g.textures().get("menu_background"), z_index, render_layers::ui);
     display.sprites(0).set_pos(pos, grid_size, 0);
-
-    display.add_sprite(1, render_layers::ui);
-    display.sprites(1).tex = g.textures().get("cursor_and_highlight");
-    display.sprites(1).z_index = z_index;
+    display.add_sprite(1, g.textures().get("cursor_and_highlight"), z_index, render_layers::ui);
     display.sprites(1).set_pos(pos, sprite_coords(6, grid_size.y), 0);
     display.sprites(1).set_tex_region(0, 0);
 
-
-
     auto& text = g.ecs.add<ecs::text>(e);
-    text.sprite_index = display.add_sprite(1, render_layers::ui);
+    text.sprite_index = display.add_sprite(1, nullptr, 0, render_layers::ui);
     text.text_entries.emplace_back( ecs::text::text_entry{});
     display.sprites(text.sprite_index ).set_pos(pos, grid_size, 0);
 }

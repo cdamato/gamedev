@@ -126,17 +126,13 @@ void inventory_init(entity e, engine& g, entity parent,  ecs::inventory& inv, sc
 	rect<f32> dim(origin.to<f32>(), sprite_coords(select.grid_size.x * element_size.x, select.grid_size.y * element_size.y));
 
 	int num_grid_elements = select.grid_size.x * select.grid_size.y;
-     ecs::display& spr = g.ecs.add<ecs::display>(e);
-	select.sprite_index = spr.add_sprite(num_grid_elements, render_layers::ui);
-	spr.sprites(select.sprite_index).tex = g.textures().get("highlight");
-    spr.sprites(select.sprite_index).z_index = 7;
+    ecs::display& spr = g.ecs.add<ecs::display>(e);
+	select.sprite_index = spr.add_sprite(num_grid_elements, g.textures().get("highlight"), 7, render_layers::ui);
 
-	int item_spr = spr.add_sprite(num_grid_elements, render_layers::ui);
-	spr.sprites(item_spr).tex = g.textures().get("items");
-    spr.sprites(item_spr).z_index = 8;
+	int item_spr = spr.add_sprite(num_grid_elements, g.textures().get("items"), 8, render_layers::ui);
 
-     ecs::text& text = g.ecs.add<ecs::text>(e);
-    text.sprite_index = spr.add_sprite(num_grid_elements, render_layers::text);
+    ecs::text& text = g.ecs.add<ecs::text>(e);
+    text.sprite_index = spr.add_sprite(num_grid_elements, nullptr, 0, render_layers::text);
     text.text_entries = std::vector<ecs::text::text_entry>(num_grid_elements);
 
 	int index = 0;

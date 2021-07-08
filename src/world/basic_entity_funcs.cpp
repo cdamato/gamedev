@@ -12,9 +12,7 @@ void egen_bullet(entity e, engine& game, std::string texname,
 {
 
 	 ecs::display& spr = game.ecs.add<ecs::display>(e);
-	spr.add_sprite(1, render_layers::sprites);
-	spr.sprites(0).tex = game.textures().get(texname.c_str());
-	//spr._dimensions = rect<f32>(source, dimensions);
+	spr.add_sprite(1, game.textures().get(texname.c_str()), 3, render_layers::sprites);
 	spr.sprites(0).set_pos(source, dimensions, 0);
 	spr.sprites(0).set_tex_region(0, 0);
 	spr.sprites(0).rotate(atan2(dest.x - source.x, (source.y - dest.y)));
@@ -49,20 +47,18 @@ void egen_bullet(entity e, engine& game, std::string texname,
 
 void egen_enemy(entity e, engine& game, world_coords pos)
 {
-    game.ecs.add<ecs::enemy>(e);
-
-	 ecs::display& spr = game.ecs.add<ecs::display>(e);
-	spr.add_sprite(1, render_layers::sprites);
-	spr.sprites(0).tex = game.textures().get("player");
+	game.ecs.add<ecs::enemy>(e);
+	ecs::display& spr = game.ecs.add<ecs::display>(e);
+	spr.add_sprite(1, game.textures().get("player"), 2, render_layers::sprites);
 	spr.sprites(0).set_pos(pos, sprite_coords(1, 1), 0);
- 	spr.sprites(0).set_tex_region(0, 0);
+	spr.sprites(0).set_tex_region(0, 0);
 
 
-	 ecs::collision& c = game.ecs.add<ecs::collision>(e);
+	ecs::collision& c = game.ecs.add<ecs::collision>(e);
 	c.disabled_sprites.push_back(1);
-	 ecs::health& h = game.ecs.add<ecs::health>(e);
+	ecs::health& h = game.ecs.add<ecs::health>(e);
 	h.has_healthbar = true;
-	 ecs::damage& d = game.ecs.add<ecs::damage>(e);
+	ecs::damage& d = game.ecs.add<ecs::damage>(e);
 
 	c.set_team_signal( ecs::collision::flags::enemy);
 	c.set_team_detector( ecs::collision::flags::ally);
@@ -79,10 +75,8 @@ void egen_enemy(entity e, engine& game, world_coords pos)
 void setup_player(engine& game)
 {
 	entity e = game.player_id();
-	 ecs::display& spr = game.ecs.add<ecs::display>(e);
-	spr.add_sprite(1, render_layers::sprites);
-
-	spr.sprites(0).tex = game.textures().get("player");
+	ecs::display& spr = game.ecs.add<ecs::display>(e);
+	spr.add_sprite(1, game.textures().get("player"), 2, render_layers::sprites);
 
 	spr.sprites(0).set_pos(sprite_coords(9, 9), sprite_coords(1, 1), 0);
 	spr.sprites(0).set_tex_region(0, 0);
@@ -118,16 +112,9 @@ void setup_player(engine& game)
 	};
 }
 
-
-
-
-
-
-
 void basic_sprite_setup(entity e, engine& g, render_layers layer, sprite_coords origin, sprite_coords pos_size, size_t tex_index, std::string texname) {
-	 ecs::display& spr = g.ecs.add<ecs::display>(e);
-    spr.add_sprite(1, layer);
-	spr.sprites(0).tex = g.textures().get(texname.c_str());
+	ecs::display& spr = g.ecs.add<ecs::display>(e);
+    spr.add_sprite(1, g.textures().get(texname.c_str()), 3, layer);
     spr.sprites(0).set_pos(origin, pos_size, 0);
     spr.sprites(0).set_tex_region(tex_index, 0);
 }
