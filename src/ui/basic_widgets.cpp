@@ -41,8 +41,10 @@ void clickable_activation(entity e, engine& g, bool release, int sprite_index, f
             display.sprites(sprite_index).set_tex_region(0, select.active_index());
         on_trigger(e, g, select.active_index());
     } else {
-        select.active = select.highlight;
-        display.sprites(sprite_index).set_tex_region(2, select.active_index());
+        if (select.highlight_index() < select.num_elements()) {
+            select.active = select.highlight;
+            display.sprites(sprite_index).set_tex_region(2, select.active_index());
+        }
     }
 }
 
@@ -259,18 +261,20 @@ void open_dropdown(entity e, engine& g, entity parent, rect<f32> box,  ecs::drop
 void dropdown_on_trigger(entity e, engine& g, int element_index) {
     auto& dropdown =  g.ecs.get<ecs::dropdown>(e);
     auto& selection =  g.ecs.get<ecs::selection>(e);
-    sprite_data& dropdown_sprite = g.ecs.get<ecs::display>(e).sprites(dropdown.sprite_index);
-    dropdown_sprite.set_tex_region(0, selection.active_index());
-    auto& widget = g.ecs.get<ecs::widget>(e);
-    if (widget.children.empty()) {
-        if (selection.active_index() == selection.highlight_index()) {
-            rect <f32> dropdown_rect = dropdown_sprite.get_dimensions(element_index);
-            entity child = g.create_entity(open_dropdown, e, dropdown_rect, dropdown.dropdowns[element_index]);
-            g.ecs.get<ecs::display>(e).sprites(0).set_pos(dropdown_rect.origin,
-                    dropdown_rect.size + g.ecs.get<ecs::display>(child).sprites(0).get_dimensions().size, selection.active_index());
+    if (selection.active_index() < selection.num_elements()) {
+        sprite_data& dropdown_sprite = g.ecs.get<ecs::display>(e).sprites(dropdown.sprite_index);
+        dropdown_sprite.set_tex_region(0, selection.active_index());
+        auto& widget = g.ecs.get<ecs::widget>(e);
+        if (widget.children.empty()) {
+            if (selection.active_index() == selection.highlight_index()) {
+                rect <f32> dropdown_rect = dropdown_sprite.get_dimensions(element_index);
+                entity child = g.create_entity(open_dropdown, e, dropdown_rect, dropdown.dropdowns[element_index]);
+                g.ecs.get<ecs::display>(e).sprites(0).set_pos(dropdown_rect.origin,
+                        dropdown_rect.size + g.ecs.get<ecs::display>(child).sprites(0).get_dimensions().size, selection.active_index());
+            }
+        } else {
+            destroy_menu_expansion(*widget.children.begin(), g);
         }
-    } else {
-        destroy_menu_expansion(*widget.children.begin(), g);
     }
 }
 

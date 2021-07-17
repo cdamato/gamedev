@@ -51,4 +51,16 @@ void options_menu_init(entity, engine&, entity, screen_coords);
 
 
 
+
+template <typename T>
+sprite_coords get_max_textsize(engine& g, T macro_name) {
+    return g.get_text_size(macro_name);
+}
+
+template <typename T, typename... Args>
+sprite_coords get_max_textsize(engine& g, T macro_name, Args... args) {
+    sprite_coords size = g.get_text_size(macro_name);
+    return sprite_coords(std::max(size.x, get_max_textsize(g, args...).x), std::min(size.y, get_max_textsize(g, args...).y));
+}
+
 #endif //UI_HELPER_FUNCS_H
