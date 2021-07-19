@@ -4,7 +4,7 @@
 #include <array>
 
 
-const config_object* config_dict::get(const std::string& name) const noexcept
+const config_object* config_dict::get(const std::string name) const noexcept
 {
     const auto it = map.find(name);
     return (it != map.end()) ? it->second.get() : nullptr;

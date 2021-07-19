@@ -7,6 +7,9 @@
 #include <fstream>
 #include <unordered_map>
 
+class serializable {};
+class deserializable {};
+
 class config_object {
 public:
     virtual ~config_object() noexcept = default;
@@ -17,7 +20,6 @@ public:
 protected:
     config_object() noexcept = default;
 };
-
 
 template <typename T>
 class config_type final : public config_object {
@@ -30,17 +32,23 @@ private:
 
 class config_dict final : public config_object {
 public:
-    template <typename value_type>
-    value_type get(std::string identifier) const noexcept{
-        auto* ptr = get(identifier);
-        return ptr ? dynamic_cast<const config_type<value_type>*>(ptr)->get() : value_type();
+    template <typename T>
+    T get(std::string identifier) const noexcept {
+        if constexpr (std::is_base_of<deserializable, T>::value) {
+            auto *dict_ptr = get(identifier);
+            return T::deserialize(dict_ptr);
+        } else if constexpr (std::is_base_of<config_object, std::remove_pointer_t<T>>::value) {
+            return dynamic_cast<T>(get(identifier));
+        } else {
+            auto* val_ptr = get(identifier);
+            return val_ptr ? dynamic_cast<const config_type<T>*>(val_ptr)->get() : T();
+        }
     }
-    const config_object* get(const std::string& name) const noexcept;
+    const config_object* get(const std::string name) const noexcept;
     auto begin() const { return map.begin(); }
     auto end() const { return map.end(); }
-    std::unordered_map<std::string, std::unique_ptr<config_object>> map;
 private:
-
+    std::unordered_map<std::string, std::unique_ptr<config_object>> map;
     friend class config_parser;
 };
 
@@ -62,6 +70,9 @@ using config_bool = config_type<bool>;
 using config_int = config_type<int>;
 using config_string = config_type<std::string>;
 using parsed_file = std::unique_ptr<config_dict>;
+using parser_dict = config_dict;
+using parser_list = config_list;
+using parser_object = config_object;
 
 class config_parser {
 public:
@@ -95,28 +106,40 @@ class dsl_printer {
 public:
     void write(std::string filename) {
         std::ofstream out(filename);
-        out << data;
+        out << _data;
     }
+
     // Append functions add text to the buffer, printing a newline afterward
     template <typename T>
-    void append(std::string key, T value) { data += tab_buffer + key + " = " + format_value(value) + "\n"; }
-    void append(std::string text) { data += tab_buffer + text + '\n'; }
+    void append(std::string key, T value) {
+        std::string serialized_value;
+        if constexpr (std::is_base_of<serializable, T>::value) {
+            serialized_value = value.serialize();
+        } else {
+            serialized_value = format_value(value);
+        }
+        _data += tab_buffer + key + " = " + serialized_value + "\n";
+    }
+    void append(std::string text) { _data += tab_buffer + text + '\n'; }
     template <typename... Args>
-    void append(std::string key, Args... args) { data += tab_buffer + key + " = {" + format_value_variadic(args...) + "}\n"; }
+    void append(std::string key, Args... args) { _data += tab_buffer + key + " = {" + format_value_variadic(args...) + "}\n"; }
     // These functions handle formatting a collection of key/value pairs
     void open_dict(std::string text) {
-        data += tab_buffer + text + " {\n";
+        _data += tab_buffer + text + " {\n";
         num_indents++;
         regen_tab_buffer();
     }
     void close_dict() {
         num_indents--;
         regen_tab_buffer();
-        data += tab_buffer + "}";
+        _data += tab_buffer + "}";
     }
+    std::string data() { return _data; }
 private:
     std::string format_value(std::string value) { return "\"" + value + "\"";};
-    std::string format_value(int value) { return std::to_string(value); };
+    template <typename T>
+    std::string format_value(T value) { return std::to_string(value); };
+    std::string format_value(bool value) { return value ? "true" : "false"; };
     template <typename T>
     std::string format_value_variadic(T value) { return format_value(value); };
     template <typename T, typename... Args>
@@ -130,7 +153,7 @@ private:
         tab_buffer = new_buffer;
     }
     std::string tab_buffer = "";
-    std::string data = "";
+    std::string _data = "";
     int num_indents = 0;
 };
 

@@ -54,7 +54,7 @@ public:
 	std::vector<sprite_data>::iterator begin() { return _sprites.begin(); }
 	std::vector<sprite_data>::iterator end() { return _sprites.end(); }
 private:
-	std::vector <sprite_data> _sprites;
+	std::vector<sprite_data> _sprites;
 };
 
 struct velocity : public component {

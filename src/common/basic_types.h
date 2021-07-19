@@ -2,7 +2,9 @@
 #define INTEGRAL_TYPES_H
 
 #include <stdint.h>
+#include <string>
 #include <chrono>
+#include <common/parser.h>
 
 using u8 = uint8_t;
 using u16 = uint16_t;
@@ -42,7 +44,7 @@ using f32 = float;
     constexpr bool operator op (const vec2d<T>& rhs) const { return x op rhs.x && y op rhs.y; }
 
 template <typename T>
-struct vec2d {
+struct vec2d : public serializable, public deserializable {
 	T x = 0, y = 0;
 	constexpr vec2d  (const T x_in = 0, const T y_in = 0) noexcept : x(x_in), y(y_in) {};
 
@@ -64,6 +66,15 @@ struct vec2d {
 	VEC2D_SCALAR_ARITH_MACRO(-)
 	VEC2D_SCALAR_ARITH_MACRO(*)
 	VEC2D_SCALAR_ARITH_MACRO(/)
+
+	std::string serialize() {
+		return "{" + std::to_string(x) + ", " + std::to_string(y) + "}";
+	}
+
+    static vec2d<T> deserialize(const parser_object* dict) {
+        const auto* list = dynamic_cast<const parser_list*>(dict);
+        return vec2d<T>(list->get<int>(0), list->get<int>(1));
+    }
 };
 
 using screen_coord_t = u16;
@@ -149,5 +160,7 @@ public:
 	void start() { _start = std::chrono::steady_clock::now(); }
 	timer() { start(); }
 };
+
+
 
 #endif //INTEGRAL_TYPES_H

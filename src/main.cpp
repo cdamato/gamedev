@@ -52,8 +52,7 @@ void init_npc_hub(entity e, engine& g, bool release) {
     config_parser p("config/main_hub.txt");
     auto d = p.parse();
 
-    const auto* mapsize = dynamic_cast<const config_list*>(d->get("map_size"));
-    world_coords map_size(mapsize->get<int>(0), mapsize->get<int>(1));
+    world_coords map_size = d->get<sprite_coords>("map_size").to<f32>();
 
     std::string tiledata_string = d->get<std::string>("tile_data");
     std::vector<u8> tile_data(tiledata_string.size());
@@ -65,18 +64,16 @@ void init_npc_hub(entity e, engine& g, bool release) {
     setup_player(g);
     set_map(g, map_size, tile_data);
 
-    const config_dict* storagechest_dict = dynamic_cast<const config_dict*>(d->get("storage_chest"));
-    const config_list* scpos = dynamic_cast<const config_list*>(storagechest_dict->get("pos"));
-    const config_list* scsize = dynamic_cast<const config_list*>(storagechest_dict->get("size"));
-    world_coords sc_origin(scpos->get<int>(0), scpos->get<int>(1));
-    world_coords sc_size(scsize->get<int>(0), scsize->get<int>(1));
+    const config_dict* sc_dict = d->get<const config_dict*>("storage_chest");
+    world_coords sc_origin = sc_dict->get<screen_coords>("pos").to<f32>();
+    world_coords sc_size = sc_dict->get<screen_coords>("size").to<f32>();
 
     g.create_entity([&](entity e, engine& g) {
         basic_sprite_setup(e, g, render_layers::sprites, sc_origin, sc_size, 0, "button");
         make_widget(e, g, g.ui.root);
 
-         ecs::inventory& inv = g.ecs.add<ecs::inventory>(e);
-         ecs::proximity& prox = g.ecs.add<ecs::proximity>(e);
+        ecs::inventory& inv = g.ecs.add<ecs::inventory>(e);
+        ecs::proximity& prox = g.ecs.add<ecs::proximity>(e);
         prox.shape =  ecs::proximity::shape::rectangle;
         prox.origin = world_coords(sc_origin.x - 1, sc_origin.y);
         prox.radii = world_coords(sc_size.x + 2, sc_size.y + 1);
@@ -85,11 +82,9 @@ void init_npc_hub(entity e, engine& g, bool release) {
         w.on_activate = storage_chest_init;
     });
 
-    const config_dict* dungeonportal_dict = dynamic_cast<const config_dict*>(d->get("dungeon_portal"));
-    const config_list* dppos = dynamic_cast<const config_list*>(dungeonportal_dict->get("pos"));
-    const config_list* dpsize = dynamic_cast<const config_list*>(dungeonportal_dict->get("size"));
-    world_coords dp_origin(dppos->get<int>(0), dppos->get<int>(1));
-    world_coords dp_size(dpsize->get<int>(0), dpsize->get<int>(1));
+    const config_dict* dp_dict = d->get<const config_dict*>("dungeon_portal");
+    world_coords dp_origin = dp_dict->get<screen_coords>("pos").to<f32>();
+    world_coords dp_size = dp_dict->get<screen_coords>("size").to<f32>();
 
     g.create_entity([&](entity e, engine& g) {
         basic_sprite_setup(e, g, render_layers::sprites, dp_origin, dp_size, 0, "button");
@@ -128,6 +123,10 @@ int main(int, char **) {
 
     timer fpscounter;
     int numframes = 0;
+
+    event_mousebutton mb(screen_coords(1312, 420), true);
+    printf("%s\n", mb.serialize().c_str());
+
 
     init_main_menu(w);
     while (!w.quit_received)
